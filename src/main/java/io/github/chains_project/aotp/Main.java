@@ -70,11 +70,85 @@ public class Main {
                 List<String> classNames = extractClassNames(filePath, roRegion);
                 System.out.println("\nFound " + classNames.size() + " classes:");
                 for (String className : classNames) {
-                    // System.out.println("  " + className);
+                    if (className.equals("Main")){
+                        System.out.println("  " + className);
+                    }
                 }
             } else {
                 System.out.println("\nRO region is empty, no classes to extract.");
             }
+
+            
+            // _core_region_alignment
+            long coreRegionAlignment = dis.readLong();
+            System.out.println("Core region alignment: " + coreRegionAlignment);
+
+            // _obj_alignment
+            int objAlignment = dis.readInt();
+            System.out.println("Object alignment: " + objAlignment);
+
+            // _narrow_oop_base
+            long narrowOopBase = dis.readLong();
+            System.out.println("Narrow oop base: " + Long.toHexString(narrowOopBase));
+
+            // _narrow_oop_shift
+            int narrowOopShift = dis.readInt();
+            System.out.println("Narrow oop shift: " + narrowOopShift);
+
+            // compact_strings
+            boolean compactStrings = dis.readBoolean();
+            System.out.println("Compact strings: " + compactStrings);
+
+            // _compact_headers
+            boolean compactHeaders = dis.readBoolean();
+            System.out.println("Compact headers: " + compactHeaders);
+
+            // _max_heap_size
+            int maxHeapSize = dis.readInt();
+            System.out.println("Max heap size: " + maxHeapSize);
+
+            // _narrow_oop_mode
+            byte narrowOopMode = dis.readByte();
+            System.out.println("Narrow oop mode: " + narrowOopMode);
+
+            // _object_streaming_mode
+            boolean objectStreamingMode = dis.readBoolean();
+            System.out.println("Object streaming mode: " + objectStreamingMode);
+
+            // _compressed_oops
+            boolean compressedOops = dis.readBoolean();
+            System.out.println("Compressed oops: " + compressedOops);
+
+            // _compressed_class_ptrs
+            boolean compressedClassPointers = dis.readBoolean();
+            System.out.println("Compressed class pointers: " + compressedClassPointers);
+
+            // _narrow_klass_pointer_bits
+            int narrowKlassPointerBits = dis.readInt();
+            System.out.println("Narrow klass pointer bits: " + narrowKlassPointerBits);
+
+            // _narrow_klass_shift
+            int narrowKlassShift = dis.readInt();
+            System.out.println("Narrow klass shift: " + narrowKlassShift);
+
+            // _cloned_vtables_offset
+            long clonedVtablesOffset = dis.readLong();
+            System.out.println("Cloned vtables offset: " + clonedVtablesOffset);
+
+            // _early_serialized_data_offset
+            long earlySerializedDataOffset = dis.readLong();
+            System.out.println("Early serialized data offset: " + earlySerializedDataOffset);
+
+            // _serialized_data_offset
+            long serializedDataOffset = dis.readLong();
+            System.out.println("Serialized data offset: " + serializedDataOffset);
+
+            // _jvm_ident
+            byte[] jvmIdentBytes = new byte[256];
+            dis.read(jvmIdentBytes);
+            String jvmIdent = new String(jvmIdentBytes, StandardCharsets.UTF_8);
+            System.out.println("JVM ident: " + jvmIdent);
+
             
         } catch (EOFException e) {
             System.out.println("Invalid AOTCache file: file too short");
@@ -128,15 +202,12 @@ public class Main {
                         String name = new String(nameBytes, StandardCharsets.UTF_8);
                         
                         // Check if it's a class name
-                        if (isClassName(name)) {
-                            String className = name.replace('/', '.');
-                            if (!seen.contains(className)) {
-                                seen.add(className);
-                                classes.add(className);
-                            }
+                        String className = name.replace('/', '.');
+                        if (!seen.contains(className)) {
+                            seen.add(className);
+                            classes.add(className);
                         }
                         
-                        // Move to next potential Symbol (align to 8-byte boundary)
                         pos += 6 + length;
                         pos = (pos + 7) & ~7; // Align to 8 bytes
                     } else {
