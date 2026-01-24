@@ -60,6 +60,7 @@ public class Main {
             CDSFileMapRegion[] regions = new CDSFileMapRegion[5];
             for (int i = 0; i < 5; i++) {
                 regions[i] = new CDSFileMapRegion(dis);
+                System.out.println("Region " + i + ": " + regions[i].used);
             }
 
             // Extract and print class names from RO region
@@ -69,7 +70,7 @@ public class Main {
                 List<String> classNames = extractClassNames(filePath, roRegion);
                 System.out.println("\nFound " + classNames.size() + " classes:");
                 for (String className : classNames) {
-                    System.out.println("  " + className);
+                    // System.out.println("  " + className);
                 }
             } else {
                 System.out.println("\nRO region is empty, no classes to extract.");

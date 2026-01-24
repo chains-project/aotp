@@ -5,11 +5,6 @@ import java.io.IOException;
 import com.google.common.io.LittleEndianDataInputStream;
 
 public class CDSFileMapRegion {
-    // Platform-dependent: size_t size
-    // AOT cache files are currently 64-bit only (size_t = 8 bytes)
-    // For 32-bit support, this would be 4 bytes
-    private static final int SIZE_T_SIZE = 8;
-    
     int crc;
     int readOnly;
     int allowExec;
@@ -43,14 +38,13 @@ public class CDSFileMapRegion {
         ptrmapOffset = readSizeT(dis);
         ptrmapSizeInBits = readSizeT(dis);
         
-        // Skip mapped_base (1 byte), in_reserved_space (1 byte)
-        // These are runtime-only fields that aren't stored in the archive
-        // Total structure size is 96 bytes: 24 (ints) + 56 (longs) + 16 (skipped) = 96
-        dis.skipBytes(8 + 7 + 1);
+        // Mapped base is a pointer so size on 64 bit is 8 bytes
+        // _in_reserved_space is a boolean so size is 1 byte + 7 bytes for padding
+        dis.skipBytes(8 + 1 + 7);
     }
     
     // AOT cache files are 64-bit only (size_t = 8 bytes)
-    // For 32-bit support, change SIZE_T_SIZE to 4 and modify this method
+    // TODO: For 32-bit support, modify this method and add a 4 byte version
     private static long readSizeT(LittleEndianDataInputStream dis) throws IOException {
         // size_t is unsigned, but Java long is signed
         // readLong() correctly reads the bytes, but values >= 2^63 will appear negative
