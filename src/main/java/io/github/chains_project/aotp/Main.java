@@ -86,6 +86,7 @@ public class Main {
             // _obj_alignment
             int objAlignment = dis.readInt();
             System.out.println("Object alignment: " + objAlignment);
+            dis.skipBytes(4);
 
             // _narrow_oop_base
             long narrowOopBase = dis.readLong();
@@ -103,12 +104,15 @@ public class Main {
             boolean compactHeaders = dis.readBoolean();
             System.out.println("Compact headers: " + compactHeaders);
 
+            // 4 + 2 + 2 -> 2 bytes padding required
+            dis.skipBytes(2);
+
             // _max_heap_size
-            int maxHeapSize = dis.readInt();
-            System.out.println("Max heap size: " + maxHeapSize);
+            long maxHeapSize = dis.readLong();
+            System.out.println("Max heap size: " + Long.toUnsignedString(maxHeapSize));
 
             // _narrow_oop_mode
-            byte narrowOopMode = dis.readByte();
+            int narrowOopMode = dis.readInt();
             System.out.println("Narrow oop mode: " + narrowOopMode);
 
             // _object_streaming_mode
@@ -123,6 +127,8 @@ public class Main {
             boolean compressedClassPointers = dis.readBoolean();
             System.out.println("Compressed class pointers: " + compressedClassPointers);
 
+            dis.skipBytes(1);
+
             // _narrow_klass_pointer_bits
             int narrowKlassPointerBits = dis.readInt();
             System.out.println("Narrow klass pointer bits: " + narrowKlassPointerBits);
@@ -130,18 +136,18 @@ public class Main {
             // _narrow_klass_shift
             int narrowKlassShift = dis.readInt();
             System.out.println("Narrow klass shift: " + narrowKlassShift);
-
+            
             // _cloned_vtables_offset
             long clonedVtablesOffset = dis.readLong();
-            System.out.println("Cloned vtables offset: " + clonedVtablesOffset);
+            System.out.println("Cloned vtables offset: " + Long.toHexString(clonedVtablesOffset));
 
             // _early_serialized_data_offset
             long earlySerializedDataOffset = dis.readLong();
-            System.out.println("Early serialized data offset: " + earlySerializedDataOffset);
+            System.out.println("Early serialized data offset: " + Long.toHexString(earlySerializedDataOffset));
 
             // _serialized_data_offset
             long serializedDataOffset = dis.readLong();
-            System.out.println("Serialized data offset: " + serializedDataOffset);
+            System.out.println("Serialized data offset: " + Long.toHexString(serializedDataOffset));
 
             // _jvm_ident
             byte[] jvmIdentBytes = new byte[256];
