@@ -43,14 +43,13 @@ oopDesc {
 - Related: [`src/hotspot/share/oops/instanceKlass.hpp`](https://github.com/openjdk/jdk/blob/master/src/hotspot/share/oops/instanceKlass.hpp)
 - Key characteristics: Mirror object for Klass metadata, used by reflection API
 
-**Structure:** Class mirrors contain references back to their corresponding Klass metadata. The Klass structure includes a `_name` field which is a pointer to a Symbol. When accessing a class name, the following byte-level encoding is traversed:
+**Structure:** Class mirrors contain references back to their corresponding Klass metadata. When accessing a class name from a Class mirror, the following byte-level traversal is performed:
 1. **Class mirror** → `_klass` pointer → **InstanceKlass**
 2. **InstanceKlass** → `_name` field (offset varies) → **Symbol pointer** (8 bytes on 64-bit)
-3. **Symbol** encoding (from byte offset 0):
-   - Bytes 0-3: `hash_and_refcount` (4 bytes) - Combined hash and reference count
-   - Bytes 4-5: `length` (2 bytes, unsigned short) - UTF-8 byte length
+3. **Symbol** bytes (as defined above in Symbol section):
+   - Bytes 0-3: `hash_and_refcount` - Combined hash and reference count
+   - Bytes 4-5: `length` - UTF-8 byte length
    - Bytes 6+: `body[length]` - UTF-8 encoded name bytes
-4. Total Symbol size: 6 + length bytes (minimum 6 bytes for empty name)
 - Source: [`src/hotspot/share/oops/symbol.hpp#L118-L122`](https://github.com/openjdk/jdk/blob/master/src/hotspot/share/oops/symbol.hpp#L118-L122)
 
 ## Method-Related Entities
@@ -129,7 +128,7 @@ ConstMethod {
 - Definition: [`src/hotspot/share/oops/methodData.hpp`](https://github.com/openjdk/jdk/blob/master/src/hotspot/share/oops/methodData.hpp)
 - Key characteristics: Profile data for JIT optimization, collects runtime statistics
 
-**Structure:** MethodData consists of a header followed by an array of ProfileData entries. Each entry is a DataLayout structure:
+**Structure:** MethodData consists of a header followed by an array of ProfileData entries. Each entry is structured as a DataLayout:
 ```
 DataLayout {
   union _header {
@@ -141,7 +140,7 @@ DataLayout {
       u4 _traps;                    // Bytes 4-7: Trap state/history
     } _struct;
   } _header;
-  intptr_t _cells[variable];        // Variable-length array of profile data cells
+  intptr_t _cells[];                // Variable-length array of profile data cells
 }
 ```
 
@@ -154,7 +153,7 @@ DataLayout {
 - **VirtualCallData**: Virtual call site type profiles
 - **RetData**: Return bci tracking
 
-Each profile data type inherits from ProfileData and uses the _cells array to store type-specific counters and statistics. Cell size is sizeof(intptr_t) - 8 bytes on 64-bit platforms.
+Each profile data type inherits from ProfileData and uses the _cells array to store type-specific counters and statistics. Cell size is sizeof(intptr_t), which is 8 bytes on 64-bit platforms.
 - Source: [`src/hotspot/share/oops/methodData.hpp#L89-L110`](https://github.com/openjdk/jdk/blob/master/src/hotspot/share/oops/methodData.hpp#L89-L110)
 
 ### MethodCounters
@@ -215,7 +214,7 @@ ConstantPool {
   int                  _length;                  // Number of entries
   
   // Followed by variable-length array:
-  intptr_t base()[_length];  // CP entry data (symbols, literals, references)
+  intptr_t base[];  // CP entry data (symbols, literals, references)
 }
 ```
 
