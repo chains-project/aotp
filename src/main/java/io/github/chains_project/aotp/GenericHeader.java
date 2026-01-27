@@ -2,8 +2,6 @@ package io.github.chains_project.aotp;
 
 import java.io.IOException;
 
-import com.google.common.io.LittleEndianDataInputStream;
-
 public class GenericHeader {
     int magic;
     int crc;
@@ -12,7 +10,7 @@ public class GenericHeader {
     int baseArchivePathOffset;
     int baseArchiveNameSize;
 
-    public GenericHeader(LittleEndianDataInputStream dis) throws IOException {
+    public GenericHeader(LittleEndianRandomAccessFile dis) throws IOException {
         magic = dis.readInt();
         crc = dis.readInt();
         version = dis.readInt();

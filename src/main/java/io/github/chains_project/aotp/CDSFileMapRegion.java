@@ -2,8 +2,6 @@ package io.github.chains_project.aotp;
 
 import java.io.IOException;
 
-import com.google.common.io.LittleEndianDataInputStream;
-
 public class CDSFileMapRegion {
     int crc;
     int readOnly;
@@ -21,7 +19,7 @@ public class CDSFileMapRegion {
     // Note: mappedBase and inReservedSpace are NOT stored in the file
     // They are runtime-only fields, so we skip them
 
-    public CDSFileMapRegion(LittleEndianDataInputStream dis) throws IOException {
+    public CDSFileMapRegion(LittleEndianRandomAccessFile dis) throws IOException {
         crc = dis.readInt();
         readOnly = dis.readInt();
         allowExec = dis.readInt();
@@ -45,7 +43,7 @@ public class CDSFileMapRegion {
     
     // AOT cache files are 64-bit only (size_t = 8 bytes)
     // TODO: For 32-bit support, modify this method and add a 4 byte version
-    private static long readSizeT(LittleEndianDataInputStream dis) throws IOException {
+    private static long readSizeT(LittleEndianRandomAccessFile dis) throws IOException {
         // size_t is unsigned, but Java long is signed
         // readLong() correctly reads the bytes, but values >= 2^63 will appear negative
         // Use Long.toUnsignedString() or Long.compareUnsigned() when working with these values

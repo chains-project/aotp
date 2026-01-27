@@ -2,7 +2,6 @@ package io.github.chains_project.aotp;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import com.google.common.io.LittleEndianDataInputStream;
 
 // https://github.com/openjdk/jdk/blob/f4607ed0a7ea2504c1d72dd3dab0b21e583fa0e7/src/hotspot/share/cds/filemap.hpp#L102
 public class FileMapHeader {
@@ -36,7 +35,7 @@ public class FileMapHeader {
     long roPtrmapStartPos;
     // TODO: accomodate more fields
 
-    public FileMapHeader(LittleEndianDataInputStream dis) throws IOException {
+    public FileMapHeader(LittleEndianRandomAccessFile dis) throws IOException {
         coreRegionAlignment = dis.readLong();
         objAlignment = dis.readInt();
 
