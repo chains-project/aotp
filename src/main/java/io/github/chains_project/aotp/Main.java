@@ -25,30 +25,28 @@ public class Main {
         0x00000008000011e8L // Classloader
     );
     
-    private static void findAndPrintSymbols(String filePath, CDSFileMapRegion rwRegion, CDSFileMapRegion roRegion, long requestedBaseAddress) throws IOException {
-        try (FileInputStream fis = new FileInputStream(filePath);
-             LittleEndianDataInputStream dis = new LittleEndianDataInputStream(fis)) {
-            
-            // Read longs sequentially until we find the pattern in RW region
-            long regionSize = rwRegion.used;
-            long longsToRead = regionSize / 8;
-            
-            for (long i = 0; i < longsToRead; i++) {
-                long value = dis.readLong();
-                if (PATTERN_VALUE.contains(value)) {
-                    // Found the pattern in RW region, read 16 more bytes for the symbol pointer
-                    // https://github.com/openjdk/jdk/blob/bbae38e510efd8877daca5118f45893bb87f6eaa/src/hotspot/share/oops/klass.hpp#L120-L132
-                    dis.skipBytes(16); // _kind, _misc_flags, _super_check_offset
-                    long symbolPointer = dis.readLong(); // Absolute address
+    private static void findAndPrintClasses(LittleEndianDataInputStream dis, String filePath,
+                                            CDSFileMapRegion rwRegion, CDSFileMapRegion roRegion,
+                                            long requestedBaseAddress) throws IOException {
+        // Read longs sequentially until we find the pattern in RW region
+        long regionSize = rwRegion.used;
+        long longsToRead = regionSize / 8;
+        
+        for (long i = 0; i < longsToRead; i++) {
+            long value = dis.readLong();
+            if (PATTERN_VALUE.contains(value)) {
+                // Found the pattern in RW region, read 16 more bytes for the symbol pointer
+                // https://github.com/openjdk/jdk/blob/bbae38e510efd8877daca5118f45893bb87f6eaa/src/hotspot/share/oops/klass.hpp#L120-L132
+                dis.skipBytes(16); // _kind, _misc_flags, _super_check_offset
+                long symbolPointer = dis.readLong(); // Absolute address
 
-                    // Read the symbol name using the absolute address
-                    String symbolName = readSymbolName(filePath, roRegion, symbolPointer, requestedBaseAddress);
-                    if (symbolName != null) {
-                        System.out.println("Found pattern at RW offset " + (i * 8) + 
-                            " (file offset: " + (rwRegion.fileOffset + i * 8) + ")" +
-                            ", symbol pointer: 0x" + Long.toHexString(symbolPointer) +
-                            ", symbol: " + symbolName);
-                    }
+                // Read the symbol name using the absolute address
+                String symbolName = readSymbolName(filePath, roRegion, symbolPointer, requestedBaseAddress);
+                if (symbolName != null) {
+                    System.out.println("Found pattern at RW offset " + (i * 8) + 
+                        " (file offset: " + (rwRegion.fileOffset + i * 8) + ")" +
+                        ", symbol pointer: 0x" + Long.toHexString(symbolPointer) +
+                        ", symbol: " + symbolName);
                 }
             }
         }
@@ -62,22 +60,7 @@ public class Main {
         try (FileInputStream fis = new FileInputStream(filePath);
              LittleEndianDataInputStream dis = new LittleEndianDataInputStream(fis)) {
             
-            // The mapping offset in the file is relative, we need to add the base address
-            long fullMappingOffset = requestedBaseAddress + roRegion.mappingOffset;
-            
-            // Convert absolute address to file offset
-            // symbolAbsoluteAddress - fullMappingOffset = offset within RO region
-            // roRegion.fileOffset + offset = file position
-            long symbolOffset = symbolAbsoluteAddress - fullMappingOffset;
-            
-            // Verify the symbol is within the RO region bounds
-            if (symbolOffset < 0 || symbolOffset >= roRegion.used) {
-                return null;
-            }
-            
-            // Seek to the symbol location in the file
-            // directly seek to the symbol offset in ro region
-            dis.skipBytes((int) (roRegion.fileOffset + symbolOffset));
+            dis.skipBytes((int) (symbolAbsoluteAddress - requestedBaseAddress));
             
             // Skip hash_and_refcount (4 bytes)
             dis.skipBytes(4);
@@ -130,7 +113,7 @@ public class Main {
             CDSFileMapRegion rwRegion = regions[0]; // Region 0 is RW region
             CDSFileMapRegion roRegion = regions[1]; // Region 1 is RO region
             if (rwRegion.used > 0 && roRegion.readOnly != 0 && roRegion.used > 0) {
-                findAndPrintSymbols(filePath, rwRegion, roRegion, fileMapHeader.requestedBaseAddress);
+                findAndPrintClasses(dis, filePath, rwRegion, roRegion, fileMapHeader.requestedBaseAddress);
             }
 
             
