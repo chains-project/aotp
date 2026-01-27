@@ -46,10 +46,7 @@ oopDesc {
 **Structure:** Class mirrors contain references back to their corresponding Klass metadata. When accessing a class name from a Class mirror, the following byte-level traversal is performed:
 1. **Class mirror** → `_klass` pointer → **InstanceKlass**
 2. **InstanceKlass** → `_name` field (offset varies) → **Symbol pointer** (8 bytes on 64-bit)
-3. **Symbol** bytes (as defined above in Symbol section):
-   - Bytes 0-3: `hash_and_refcount` - Combined hash and reference count
-   - Bytes 4-5: `length` - UTF-8 byte length
-   - Bytes 6+: `body[length]` - UTF-8 encoded name bytes
+3. **Symbol** bytes (as defined above in Symbol section): `hash_and_refcount` (4 bytes) + `length` (2 bytes) + `body[length]` UTF-8 bytes
 - Source: [`src/hotspot/share/oops/symbol.hpp#L118-L122`](https://github.com/openjdk/jdk/blob/master/src/hotspot/share/oops/symbol.hpp#L118-L122)
 
 ## Method-Related Entities
