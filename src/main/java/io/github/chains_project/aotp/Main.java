@@ -111,30 +111,21 @@ public class Main {
             // https://github.com/openjdk/jdk/blob/f4607ed0a7ea2504c1d72dd3dab0b21e583fa0e7/src/hotspot/share/include/cds.h#L84
             GenericHeader header = new GenericHeader(dis);
 
-            if (header.magic == AOT_MAGIC) {
-                System.out.println("Valid AOTCache file");
-            } else {
+            if (header.magic != AOT_MAGIC) {
                 String actualMagic = String.format("%08x", header.magic);
                 System.out.println("Invalid AOTCache file: magic number mismatch (actual: " + actualMagic + ")");
                 System.exit(1);
             }
 
-            System.out.println("Version: " + header.version);
-
             // read 5 regions
             CDSFileMapRegion[] regions = new CDSFileMapRegion[5];
             for (int i = 0; i < 5; i++) {
                 regions[i] = new CDSFileMapRegion(dis);
-                System.out.println("Region " + i + ": used=" + regions[i].used + 
-                    ", fileOffset=0x" + Long.toHexString(regions[i].fileOffset) +
-                    ", mappingOffset=0x" + Long.toHexString(regions[i].mappingOffset));
             }
 
             // Read the file map header
             FileMapHeader fileMapHeader = new FileMapHeader(dis);
 
-            System.out.println("Requested base address: 0x" + Long.toHexString(fileMapHeader.requestedBaseAddress));
-            
             // Find pattern in RW region and resolve symbols from RO region
             CDSFileMapRegion rwRegion = regions[0]; // Region 0 is RW region
             CDSFileMapRegion roRegion = regions[1]; // Region 1 is RO region
