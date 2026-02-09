@@ -116,10 +116,12 @@ public class Main {
             // Read the file map header
             FileMapHeader fileMapHeader = new FileMapHeader(file);
 
-            CDSFileMapRegion rwRegion = regions[0]; // Region 0 is RW region
-            if (rwRegion.used > 0) {
-                findAndPrintClasses(file, rwRegion, fileMapHeader.requestedBaseAddress);
-            }
+            FileMapHeader.print(header, regions, fileMapHeader, System.out);
+
+            // CDSFileMapRegion rwRegion = regions[0]; // Region 0 is RW region
+            // if (rwRegion.used > 0) {
+            //     findAndPrintClasses(file, rwRegion, fileMapHeader.requestedBaseAddress);
+            // }
 
         } catch (EOFException e) {
             System.out.println("Invalid AOTCache file: file too short");

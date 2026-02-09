@@ -145,4 +145,68 @@ public class FileMapHeader {
         dis.skipBytes(2);
     }
 
+    /**
+     * Prints the full file map dump in the same format as C++ FileMapHeader::print:
+     * generic header, then each region, then "end regions", then file map header fields.
+     */
+    public static void print(GenericHeader genericHeader, CDSFileMapRegion[] regions,
+            FileMapHeader fileMapHeader, Appendable st) throws IOException {
+        genericHeader.print(st);
+        for (int i = 0; i < regions.length; i++) {
+            regions[i].print(st, i);
+        }
+        st.append("============ end regions ======== \n");
+        fileMapHeader.print(st);
+    }
+
+    public void print(Appendable st) throws IOException {
+        st.append(String.format("- core_region_alignment:                    %d%n", coreRegionAlignment));
+        st.append(String.format("- obj_alignment:                            %d%n", objAlignment));
+        st.append(String.format("- narrow_oop_base:                          0x%x%n", narrowOopBase));
+        st.append(String.format("- narrow_oop_shift:                         %d%n", narrowOopShift));
+        st.append(String.format("- compact_strings:                          %d%n", compactStrings ? 1 : 0));
+        st.append(String.format("- compact_headers:                          %d%n", compactHeaders ? 1 : 0));
+        st.append(String.format("- max_heap_size:                            %d%n", maxHeapSize));
+        st.append(String.format("- narrow_oop_mode:                          %d%n", narrowOopMode));
+        st.append(String.format("- compressed_oops:                          %d%n", compressedOops ? 1 : 0));
+        st.append(String.format("- compressed_class_ptrs:                    %d%n", compressedClassPointers ? 1 : 0));
+        st.append(String.format("- narrow_klass_pointer_bits:                %d%n", narrowKlassPointerBits));
+        st.append(String.format("- narrow_klass_shift:                       %d%n", narrowKlassShift));
+        st.append(String.format("- cloned_vtables_offset:                    0x%x%n", clonedVtablesOffset));
+        st.append(String.format("- early_serialized_data_offset:             0x%x%n", earlySerializedDataOffset));
+        st.append(String.format("- serialized_data_offset:                   0x%x%n", serializedDataOffset));
+        int nullIdx = jvmIdent != null ? jvmIdent.indexOf(0) : -1;
+        String jvmIdentTrimmed = jvmIdent == null ? "" : (nullIdx >= 0 ? jvmIdent.substring(0, nullIdx) : jvmIdent).trim();
+        st.append(String.format("- jvm_ident:                                %s%n", jvmIdentTrimmed));
+        st.append(String.format("- class_location_config_offset:             0x%x%n", classLocationConfigOffset));
+        st.append(String.format("- verify_local:                             %d%n", verifyLocal ? 1 : 0));
+        st.append(String.format("- verify_remote:                            %d%n", verifyRemote ? 1 : 0));
+        st.append(String.format("- has_platform_or_app_classes:              %d%n", hasPlatformOrAppClasses ? 1 : 0));
+        st.append(String.format("- requested_base_address:                   0x%x%n", requestedBaseAddress));
+        st.append(String.format("- mapped_base_address:                      0x%x%n", mappedBaseAddress));
+        st.append(String.format("- object_streaming_mode:                    %d%n", objectStreamingMode ? 1 : 0));
+        st.append("- mapped_heap_header\n");
+        st.append("  - root_segments\n");
+        ArchiveMappedHeapHeader mh = archiveMappedHeapHeader;
+        HeapRootSegments rs = mh != null ? mh.heapRootSegments() : null;
+        st.append(String.format("    - roots_count:                          %d%n", rs != null ? rs.rootsCount() : 0));
+        st.append(String.format("    - base_offset:                          0x%x%n", rs != null ? rs.baseOffset() : 0L));
+        st.append(String.format("    - count:                                %d%n", rs != null ? rs.count() : 0L));
+        st.append(String.format("    - max_size_elems:                       %d%n", rs != null ? rs.maxSizeInElems() : 0));
+        st.append(String.format("    - max_size_bytes:                       %d%n", rs != null ? rs.maxSizeInBytes() : 0L));
+        st.append(String.format("  - oopmap_start_pos:                       %d%n", mh != null ? mh.oopmapStartPos() : 0L));
+        st.append(String.format("  - oopmap_ptrmap_pos:                      %d%n", mh != null ? mh.ptrmapStartPos() : 0L));
+        st.append("- streamed_heap_header\n");
+        ArchiveStreamedHeapHeader sh = archiveStreamedHeapHeader;
+        st.append(String.format("  - forwarding_offset:                      %d%n", sh != null ? sh.forwardingOffset() : 0L));
+        st.append(String.format("  - roots_offset:                           %d%n", sh != null ? sh.rootsOffset() : 0L));
+        st.append(String.format("  - num_roots:                              %d%n", sh != null ? sh.numRoots() : 0L));
+        st.append(String.format("  - root_highest_object_index_table_offset: %d%n", sh != null ? sh.rootHighestObjectIndexTableOffset() : 0L));
+        st.append(String.format("  - num_archived_objects:                   %d%n", sh != null ? sh.numArchivedObjects() : 0L));
+        st.append(String.format("- _rw_ptrmap_start_pos:                     %d%n", rwPtrmapStartPos));
+        st.append(String.format("- _ro_ptrmap_start_pos:                     %d%n", roPtrmapStartPos));
+        st.append(String.format("- use_optimized_module_handling:            %d%n", useOptimizedModuleHandling ? 1 : 0));
+        st.append(String.format("- has_full_module_graph:                    %d%n", hasFullModuleGraph ? 1 : 0));
+        st.append(String.format("- has_aot_linked_classes:                   %d%n", hasAotLinkedClasses ? 1 : 0));
+    }
 }
