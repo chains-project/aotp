@@ -5,8 +5,24 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.Callable;
 
-public class Main {
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+@Command(name = "aotp", description = "Tool to give insight into AOTCache files.")
+public class Main implements Callable<Integer> {
+
+    @Parameters(index = "0", description = "Path to the AOT cache file.")
+    String filePath;
+
+    @Option(names = "--header", description = "Print the file map header.")
+    boolean header;
+
+    @Option(names = "--list-classes", description = "List classes found in the RW region.")
+    boolean listClasses;
 
     // Magic number for AOTCache files
     // https://github.com/openjdk/jdk/blob/6f6966b28b2c5a18b001be49f5db429c667d7a8f/src/hotspot/share/include/cds.h#L39
@@ -86,25 +102,26 @@ public class Main {
         }
     }
 
-    public static void main(String[] args) {
-        if (args.length != 1) {
-            System.err.println("Usage: java Main <path-to-aot-file>");
-            System.exit(1);
+    @Override
+    public Integer call() {
+        boolean showHeader = header;
+        boolean showClasses = listClasses;
+        if (!showHeader && !showClasses) {
+            showHeader = true;
+            showClasses = true;
         }
-
-        String filePath = args[0];
 
         try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
             LittleEndianRandomAccessFile file = new LittleEndianRandomAccessFile(raf);
 
             // Read the generic header
             // https://github.com/openjdk/jdk/blob/f4607ed0a7ea2504c1d72dd3dab0b21e583fa0e7/src/hotspot/share/include/cds.h#L84
-            GenericHeader header = new GenericHeader(file);
+            GenericHeader genericHeader = new GenericHeader(file);
 
-            if (header.magic != AOT_MAGIC) {
-                String actualMagic = String.format("%08x", header.magic);
+            if (genericHeader.magic != AOT_MAGIC) {
+                String actualMagic = String.format("%08x", genericHeader.magic);
                 System.out.println("Invalid AOTCache file: magic number mismatch (actual: " + actualMagic + ")");
-                System.exit(1);
+                return 1;
             }
 
             // read 5 regions
@@ -116,19 +133,29 @@ public class Main {
             // Read the file map header
             FileMapHeader fileMapHeader = new FileMapHeader(file);
 
-            FileMapHeader.print(header, regions, fileMapHeader, System.out);
+            if (showHeader) {
+                FileMapHeader.print(genericHeader, regions, fileMapHeader, System.out);
+            }
 
-            // CDSFileMapRegion rwRegion = regions[0]; // Region 0 is RW region
-            // if (rwRegion.used > 0) {
-            //     findAndPrintClasses(file, rwRegion, fileMapHeader.requestedBaseAddress);
-            // }
+            if (showClasses) {
+                CDSFileMapRegion rwRegion = regions[0]; // Region 0 is RW region
+                if (rwRegion.used > 0) {
+                    findAndPrintClasses(file, rwRegion, fileMapHeader.requestedBaseAddress);
+                }
+            }
 
+            return 0;
         } catch (EOFException e) {
             System.out.println("Invalid AOTCache file: file too short");
-            System.exit(1);
+            return 1;
         } catch (IOException e) {
             System.err.println("Error reading file: " + e.getMessage());
-            System.exit(1);
+            return 1;
         }
+    }
+
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new Main()).execute(args);
+        System.exit(exitCode);
     }
 }
