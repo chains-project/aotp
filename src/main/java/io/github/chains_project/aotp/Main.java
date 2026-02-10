@@ -4,6 +4,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -49,8 +50,8 @@ public class Main implements Callable<Integer> {
             return;
         }
 
-        // Scan the RW region bytes 8-bytes at a time for the klass vtable patterns.
         List<Long> patterns = getPatternsforClasses(requestedBaseAddress);
+        List<ClassEntry> entries = new ArrayList<>();
         final int len = bytes.length;
 
         for (int offset = 0; offset + 8 <= len; offset += 8) {
@@ -58,19 +59,19 @@ public class Main implements Callable<Integer> {
             if (!patterns.contains(value)) {
                 continue;
             }
-
-            // Found the pattern in RW region, read 16 more bytes for the symbol pointer
-            // https://github.com/openjdk/jdk/blob/bbae38e510efd8877daca5118f45893bb87f6eaa/src/hotspot/share/oops/klass.hpp#L120-L132
-            int symbolPtrOffset = offset + 8 + 16; // skip vtable ptr + _kind, _misc_flags, _super_check_offset
-            if (symbolPtrOffset + 8 > len) {
-                // Not enough bytes remaining in this region to read the symbol pointer.
+            int entryStart = offset; // first 4 bytes = layoutHelper, next 4 = kind
+            if (entryStart + ClassEntry.entrySize() > len) {
                 continue;
             }
+            try {
+                entries.add(ClassEntry.parse(bytes, entryStart));
+            } catch (IllegalArgumentException ignored) {
+                // not enough bytes, skip
+            }
+        }
 
-            long symbolPointer = readLongLE(bytes, symbolPtrOffset); // Absolute address
-
-            // Read the symbol name using the absolute address from the full file.
-            String className = readSymbolName(file, symbolPointer, requestedBaseAddress);
+        for (ClassEntry entry : entries) {
+            String className = readSymbolName(file, entry._name, requestedBaseAddress);
             if (className != null) {
                 System.out.println(className);
             }
