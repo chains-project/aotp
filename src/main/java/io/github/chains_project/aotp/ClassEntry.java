@@ -10,6 +10,7 @@ public final class ClassEntry {
     public final long secondarySuperCache;
     public final long secondarySupers;
     public final long primarySupers;
+    // TODO: more fields to come
 
     public ClassEntry(int layoutHelper, int kind, long miscFlags, int superCheckOffset,
                       long _name, long secondarySuperCache, long secondarySupers, long primarySupers) {

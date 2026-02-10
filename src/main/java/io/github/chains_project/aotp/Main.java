@@ -60,14 +60,7 @@ public class Main implements Callable<Integer> {
                 continue;
             }
             int entryStart = offset; // first 4 bytes = layoutHelper, next 4 = kind
-            if (entryStart + ClassEntry.entrySize() > len) {
-                continue;
-            }
-            try {
-                entries.add(ClassEntry.parse(bytes, entryStart));
-            } catch (IllegalArgumentException ignored) {
-                // not enough bytes, skip
-            }
+            entries.add(ClassEntry.parse(bytes, entryStart));
         }
 
         for (ClassEntry entry : entries) {
