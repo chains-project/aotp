@@ -1,6 +1,10 @@
 package io.github.chains_project.aotp;
 
-public final class ClassEntry {
+/**
+ * Base representation of a HotSpot {@code Klass} record in the RW region.
+ * https://github.com/openjdk/jdk/blob/62c7e9aefd4320d9d0cd8fa10610f59abb4de670/src/hotspot/share/oops/klass.hpp#L62
+ */
+public abstract class ClassEntry {
 
     public final int layoutHelper;
     public final int kind;
@@ -10,10 +14,33 @@ public final class ClassEntry {
     public final long secondarySuperCache;
     public final long secondarySupers;
     public final long primarySupers;
-    // TODO: more fields to come
+    public final long javaMirror; // this is oopHandle but it basically stores a pointer to oop
+    public final long _super;
+    public final long subklass;
+    public final long nextSibling;
+    public final long nextLink;
+    public final long classLoaderData;
+    public final long prototypeHeader;
+    public final int secondarySupersBitmap;
+    public final byte hashSlot;
 
-    public ClassEntry(int layoutHelper, int kind, long miscFlags, int superCheckOffset,
-                      long _name, long secondarySuperCache, long secondarySupers, long primarySupers) {
+    protected ClassEntry(int layoutHelper,
+                         int kind,
+                         long miscFlags,
+                         int superCheckOffset,
+                         long _name,
+                         long secondarySuperCache,
+                         long secondarySupers,
+                         long primarySupers,
+                         long javaMirror,
+                         long _super,
+                         long subklass,
+                         long nextSibling,
+                         long nextLink,
+                         long classLoaderData,
+                         long prototypeHeader,
+                         int secondarySupersBitmap,
+                         byte hashSlot) {
         this.layoutHelper = layoutHelper;
         this.kind = kind;
         this.miscFlags = miscFlags;
@@ -22,43 +49,22 @@ public final class ClassEntry {
         this.secondarySuperCache = secondarySuperCache;
         this.secondarySupers = secondarySupers;
         this.primarySupers = primarySupers;
+        this.javaMirror = javaMirror;
+        this._super = _super;
+        this.subklass = subklass;
+        this.nextSibling = nextSibling;
+        this.nextLink = nextLink;
+        this.classLoaderData = classLoaderData;
+        this.prototypeHeader = prototypeHeader;
+        this.secondarySupersBitmap = secondarySupersBitmap;
+        this.hashSlot = hashSlot;
     }
 
     /**
-     * Parse a single ClassEntry from region bytes at {@code offset} (first field is layoutHelper).
-     * Includes 4-byte padding before superCheckOffset.
+     * Convenience accessor for the class name symbol pointer.
      */
-    public static ClassEntry parse(byte[] bytes, int offset) {
-        int pos = offset;
-        int layoutHelper = readIntLE(bytes, pos);  pos += 4;
-        int kind = readIntLE(bytes, pos);         pos += 4;
-        long miscFlags = readLongLE(bytes, pos);   pos += 8;
-        pos += 4; // padding before superCheckOffset
-        int superCheckOffset = readIntLE(bytes, pos); pos += 4;
-        long name = readLongLE(bytes, pos);       pos += 8;
-        long secondarySuperCache = readLongLE(bytes, pos); pos += 8;
-        long secondarySupers = readLongLE(bytes, pos);     pos += 8;
-        long primarySupers = readLongLE(bytes, pos);
-        return new ClassEntry(layoutHelper, kind, miscFlags, superCheckOffset,
-                name, secondarySuperCache, secondarySupers, primarySupers);
-    }
-
-    private static int readIntLE(byte[] bytes, int offset) {
-        return (bytes[offset] & 0xFF)
-             | ((bytes[offset + 1] & 0xFF) << 8)
-             | ((bytes[offset + 2] & 0xFF) << 16)
-             | ((bytes[offset + 3] & 0xFF) << 24);
-    }
-
-    private static long readLongLE(byte[] bytes, int offset) {
-        return ((long) bytes[offset] & 0xFF)
-             | (((long) bytes[offset + 1] & 0xFF) << 8)
-             | (((long) bytes[offset + 2] & 0xFF) << 16)
-             | (((long) bytes[offset + 3] & 0xFF) << 24)
-             | (((long) bytes[offset + 4] & 0xFF) << 32)
-             | (((long) bytes[offset + 5] & 0xFF) << 40)
-             | (((long) bytes[offset + 6] & 0xFF) << 48)
-             | (((long) bytes[offset + 7] & 0xFF) << 56);
+    public long namePointer() {
+        return _name;
     }
 }
 

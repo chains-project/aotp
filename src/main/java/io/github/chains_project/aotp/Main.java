@@ -51,7 +51,7 @@ public class Main implements Callable<Integer> {
         }
 
         List<Long> patterns = getPatternsforClasses(requestedBaseAddress);
-        List<ClassEntry> entries = new ArrayList<>();
+        List<InstanceClass> entries = new ArrayList<>();
         final int len = bytes.length;
 
         for (int offset = 0; offset + 8 <= len; offset += 8) {
@@ -60,11 +60,11 @@ public class Main implements Callable<Integer> {
                 continue;
             }
             int entryStart = offset; // first 4 bytes = layoutHelper, next 4 = kind
-            entries.add(ClassEntry.parse(bytes, entryStart));
+            entries.add(InstanceClass.parse(bytes, entryStart));
         }
 
-        for (ClassEntry entry : entries) {
-            String className = readSymbolName(file, entry._name, requestedBaseAddress);
+        for (InstanceClass entry : entries) {
+            String className = readSymbolName(file, entry.namePointer(), requestedBaseAddress);
             if (className != null) {
                 System.out.println(className);
             }
