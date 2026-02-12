@@ -22,7 +22,10 @@ public final class InstanceClass extends ClassEntry {
                           long classLoaderData,
                           long prototypeHeader,
                           int secondarySupersBitmap,
-                          byte hashSlot) {
+                          byte hashSlot,
+                          short sharedClassPathIndex,
+                          short aotClassFlags,
+                          int vtableLen) {
         super(layoutHelper,
               kind,
               miscFlags,
@@ -39,7 +42,10 @@ public final class InstanceClass extends ClassEntry {
               classLoaderData,
               prototypeHeader,
               secondarySupersBitmap,
-              hashSlot);
+              hashSlot,
+              sharedClassPathIndex,
+              aotClassFlags,
+              vtableLen);
     }
 
     /**
@@ -95,6 +101,15 @@ public final class InstanceClass extends ClassEntry {
         pos += 4;
         byte hashSlot = (byte) bytes[pos];
         pos += 1;
+        short sharedClassPathIndex = readShortLE(bytes, pos);
+        pos += 2;
+        
+        pos += 1;
+
+        short aotClassFlags = readShortLE(bytes, pos);
+        pos += 2;
+        int vtableLen = readIntLE(bytes, pos);
+        pos += 4;
 
         return new InstanceClass(layoutHelper,
                                  kind,
@@ -112,7 +127,10 @@ public final class InstanceClass extends ClassEntry {
                                  classLoaderData,
                                  prototypeHeader,
                                  secondarySupersBitmap,
-                                 hashSlot);
+                                 hashSlot,
+                                 sharedClassPathIndex,
+                                 aotClassFlags,
+                                 vtableLen);
     }
 
     private static short readShortLE(byte[] bytes, int offset) {

@@ -4,7 +4,7 @@ package io.github.chains_project.aotp;
  * Base representation of a HotSpot {@code Klass} record in the RW region.
  * https://github.com/openjdk/jdk/blob/62c7e9aefd4320d9d0cd8fa10610f59abb4de670/src/hotspot/share/oops/klass.hpp#L62
  * 
- * This has fixed size of 117 bytes including padding.
+ * This has fixed size of 126 bytes including padding.
  */
 public abstract class ClassEntry {
 
@@ -25,6 +25,9 @@ public abstract class ClassEntry {
     public final long prototypeHeader;
     public final int secondarySupersBitmap;
     public final byte hashSlot;
+    public final short sharedClassPathIndex;
+    public final short aotClassFlags;
+    public final int vtableLen;
 
     protected ClassEntry(int layoutHelper,
                          short kind,
@@ -42,7 +45,10 @@ public abstract class ClassEntry {
                          long classLoaderData,
                          long prototypeHeader,
                          int secondarySupersBitmap,
-                         byte hashSlot) {
+                         byte hashSlot,
+                         short sharedClassPathIndex,
+                         short aotClassFlags,
+                         int vtableLen) {
         this.layoutHelper = layoutHelper;
         this.kind = kind;
         this.miscFlags = miscFlags;
@@ -60,6 +66,9 @@ public abstract class ClassEntry {
         this.prototypeHeader = prototypeHeader;
         this.secondarySupersBitmap = secondarySupersBitmap;
         this.hashSlot = hashSlot;
+        this.sharedClassPathIndex = sharedClassPathIndex;
+        this.aotClassFlags = aotClassFlags;
+        this.vtableLen = vtableLen;
     }
 
     /**
