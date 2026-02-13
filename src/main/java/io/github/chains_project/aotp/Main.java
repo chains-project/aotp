@@ -12,6 +12,7 @@ import io.github.chains_project.aotp.header.CDSFileMapRegion;
 import io.github.chains_project.aotp.header.FileMapHeader;
 import io.github.chains_project.aotp.header.GenericHeader;
 import io.github.chains_project.aotp.header.RegionData;
+import io.github.chains_project.aotp.oops.klass.ClassEntry;
 import io.github.chains_project.aotp.oops.klass.InstanceClass;
 import io.github.chains_project.aotp.utils.ByteReader;
 import io.github.chains_project.aotp.utils.LittleEndianRandomAccessFile;
@@ -32,6 +33,13 @@ public class Main implements Callable<Integer> {
     @Option(names = "--list-classes", description = "List classes found in the RW region.")
     boolean listClasses;
 
+    @Option(names = "--class-size",
+            paramLabel = "CLASS",
+            description = "Print the size of the specified class.")
+    String classSizeClassName;
+
+    private record ClassInfo(String name, ClassEntry entry) {}
+
     // Magic number for AOTCache files
     // https://github.com/openjdk/jdk/blob/6f6966b28b2c5a18b001be49f5db429c667d7a8f/src/hotspot/share/include/cds.h#L39
     private static final int AOT_MAGIC = 0xf00baba2;
@@ -49,16 +57,16 @@ public class Main implements Callable<Integer> {
         );
     }
 
-    private static void findAndPrintClasses(LittleEndianRandomAccessFile file,
-                                            RegionData rwRegionData,
-                                            long requestedBaseAddress) throws IOException {
+    private static List<ClassInfo> loadClasses(LittleEndianRandomAccessFile file,
+                                               RegionData rwRegionData,
+                                               long requestedBaseAddress) throws IOException {
         byte[] bytes = rwRegionData.bytes();
         if (bytes.length == 0) {
-            return;
+            return List.of();
         }
 
         List<Long> patterns = getPatternsforClasses(requestedBaseAddress);
-        List<InstanceClass> entries = new ArrayList<>();
+        List<ClassInfo> entries = new ArrayList<>();
         final int len = bytes.length;
 
         for (int offset = 0; offset + 8 <= len; offset += 8) {
@@ -67,15 +75,14 @@ public class Main implements Callable<Integer> {
                 continue;
             }
             int entryStart = offset; // first 4 bytes = layoutHelper, next 4 = kind
-            entries.add(InstanceClass.parse(bytes, entryStart));
-        }
-
-        for (InstanceClass entry : entries) {
-            String className = readSymbolName(file, entry.namePointer(), requestedBaseAddress);
+            InstanceClass parsed = InstanceClass.parse(bytes, entryStart);
+            String className = readSymbolName(file, parsed.namePointer(), requestedBaseAddress);
             if (className != null) {
-                System.out.println(className);
+                entries.add(new ClassInfo(className, parsed));
             }
         }
+
+        return entries;
     }
 
     /**
@@ -116,11 +123,13 @@ public class Main implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        boolean showHeader = header;
-        boolean showClasses = listClasses;
-        if (!showHeader && !showClasses) {
-            showHeader = true;
-            showClasses = true;
+        String className = classSizeClassName;
+        boolean classSize = className != null && !className.isEmpty();
+
+        boolean anyFlag = header || listClasses || classSize;
+        if (!anyFlag) {
+            header = true;
+            listClasses = true;
         }
 
         try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
@@ -132,7 +141,7 @@ public class Main implements Callable<Integer> {
 
             if (genericHeader.magic() != AOT_MAGIC) {
                 String actualMagic = String.format("%08x", genericHeader.magic());
-                System.out.println("Invalid AOTCache file: magic number mismatch (actual: " + actualMagic + ")");
+                System.err.println("Invalid AOTCache file: magic number mismatch (actual: " + actualMagic + ")");
                 return 1;
             }
 
@@ -149,14 +158,36 @@ public class Main implements Callable<Integer> {
             // to seek around in the underlying file.
             RegionData[] regionData = RegionData.loadAll(file, regions);
 
-            if (showHeader) {
+            if (header) {
                 FileMapHeader.print(genericHeader, regions, fileMapHeader, System.out);
+                return 0;
             }
 
-            if (showClasses) {
-                RegionData rwRegionData = regionData[0]; // Region 0 is RW region
-                if (rwRegionData.bytes().length > 0) {
-                    findAndPrintClasses(file, rwRegionData, fileMapHeader.requestedBaseAddress());
+            RegionData rwRegionData = regionData[0]; // Region 0 is RW region
+            if (rwRegionData.bytes().length > 0) {
+                List<ClassInfo> classes = loadClasses(file,
+                                                        rwRegionData,
+                                                        fileMapHeader.requestedBaseAddress());
+
+                if (listClasses) {
+                    for (ClassInfo info : classes) {
+                        System.out.println(info.name());
+                    }
+                }
+
+                if (classSize) {
+                    ClassInfo match = null;
+                    for (ClassInfo info : classes) {
+                        if (info.name().equals(className)) {
+                            match = info;
+                            break;
+                        }
+                    }
+                    if (match == null) {
+                        System.err.println("Class not found: " + className);
+                        return 1;
+                    }
+                    System.out.println(match.entry().getSize());
                 }
             }
 
