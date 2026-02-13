@@ -1,5 +1,10 @@
 package io.github.chains_project.aotp.oops.klass;
 
+import java.io.PrintStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.List;
+
 /**
  * Base representation of a HotSpot {@code Klass} record in the RW region.
  * https://github.com/openjdk/jdk/blob/62c7e9aefd4320d9d0cd8fa10610f59abb4de670/src/hotspot/share/oops/klass.hpp#L62
@@ -91,6 +96,166 @@ public abstract class ClassEntry {
 
     public int getSize() {
         return 200;
+    }
+
+    /**
+     * Pretty-print all fields of this class (including subclasses) to the given
+     * {@link PrintStream}.
+     * <p>
+     * Format:
+     * <pre>
+     * fieldName            value
+     * nestedObject:
+     *   nestedField        value
+     * </pre>
+     * <p>
+     * All {@code long} values are rendered using {@link Long#toHexString(long)}.
+     */
+    public void print(PrintStream out) {
+        if (out == null) {
+            throw new IllegalArgumentException("PrintStream must not be null");
+        }
+        printObjectFields(this, this.getClass(), out, "");
+    }
+
+    private static void printObjectFields(Object obj, Class<?> type, PrintStream out, String indent) {
+        if (obj == null || type == null || type == Object.class) {
+            return;
+        }
+
+        // Print superclass fields first (base class before derived class)
+        printObjectFields(obj, type.getSuperclass(), out, indent);
+
+        // Then print current class' fields
+        Field[] fields = type.getDeclaredFields();
+        for (Field field : fields) {
+            int modifiers = field.getModifiers();
+            if (Modifier.isStatic(modifiers)) {
+                continue;
+            }
+            printSingleField(obj, field, out, indent);
+        }
+    }
+
+    private static void printSingleField(Object owner, Field field, PrintStream out, String indent) {
+        field.setAccessible(true);
+
+        final String name = field.getName();
+        try {
+            Class<?> fieldType = field.getType();
+
+            if (fieldType == long.class) {
+                long value = field.getLong(owner);
+                printLine(out, indent, name, Long.toHexString(value));
+                return;
+            }
+
+            if (fieldType == Long.class) {
+                Long value = (Long) field.get(owner);
+                printLine(out, indent, name, value == null ? "null" : Long.toHexString(value));
+                return;
+            }
+
+            Object value = field.get(owner);
+
+            if (value == null) {
+                printLine(out, indent, name, "null");
+                return;
+            }
+
+            if (fieldType == long[].class) {
+                long[] arr = (long[]) value;
+                StringBuilder sb = new StringBuilder();
+                sb.append('[');
+                for (int i = 0; i < arr.length; i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(Long.toHexString(arr[i]));
+                }
+                sb.append(']');
+                printLine(out, indent, name, sb.toString());
+                return;
+            }
+
+            if (fieldType.isArray()) {
+                int length = java.lang.reflect.Array.getLength(value);
+                StringBuilder sb = new StringBuilder();
+                sb.append('[');
+                for (int i = 0; i < length; i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    Object element = java.lang.reflect.Array.get(value, i);
+                    if (element instanceof Long l) {
+                        sb.append(Long.toHexString(l));
+                    } else {
+                        sb.append(String.valueOf(element));
+                    }
+                }
+                sb.append(']');
+                printLine(out, indent, name, sb.toString());
+                return;
+            }
+
+            if (value instanceof List<?> list) {
+                // Print list summary line
+                printLine(out, indent, name + ".size", Integer.toString(list.size()));
+                for (int i = 0; i < list.size(); i++) {
+                    Object element = list.get(i);
+                    String elementName = name + "[" + i + "]";
+                    printNestedValue(out, indent + "  ", elementName, element);
+                }
+                return;
+            }
+
+            // Simple scalar types
+            if (isSimpleScalar(value)) {
+                if (value instanceof Long l) {
+                    printLine(out, indent, name, Long.toHexString(l));
+                } else {
+                    printLine(out, indent, name, String.valueOf(value));
+                }
+                return;
+            }
+
+            // Nested object / record – print its fields with additional indentation.
+            printNestedValue(out, indent, name, value);
+        } catch (IllegalAccessException e) {
+            printLine(out, indent, name, "<inaccessible>");
+        }
+    }
+
+    private static void printNestedValue(PrintStream out, String indent, String name, Object value) {
+        if (value == null) {
+            printLine(out, indent, name, "null");
+            return;
+        }
+        if (isSimpleScalar(value)) {
+            if (value instanceof Long l) {
+                printLine(out, indent, name, Long.toHexString(l));
+            } else {
+                printLine(out, indent, name, String.valueOf(value));
+            }
+            return;
+        }
+        printLine(out, indent, name, "");
+        printObjectFields(value, value.getClass(), out, indent + "  ");
+    }
+
+    private static boolean isSimpleScalar(Object value) {
+        if (value == null) {
+            return false;
+        }
+        return value instanceof String ||
+               value instanceof Number ||
+               value instanceof Boolean ||
+               value instanceof Character ||
+               value.getClass().isEnum();
+    }
+
+    private static void printLine(PrintStream out, String indent, String fieldName, String value) {
+        out.printf("%s%-24s %s%n", indent, fieldName, value);
     }
 }
 

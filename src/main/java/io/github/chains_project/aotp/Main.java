@@ -30,6 +30,11 @@ public class Main implements Callable<Integer> {
     @Option(names = "--header", description = "Print the file map header.")
     boolean header;
 
+    @Option(names = "--print-class",
+            paramLabel = "CLASS",
+            description = "Pretty print the fields of the specified class.")
+    String printClassName;
+
     @Option(names = "--list-classes", description = "List classes found in the RW region.")
     boolean listClasses;
 
@@ -123,10 +128,7 @@ public class Main implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        String className = classSizeClassName;
-        boolean classSize = className != null && !className.isEmpty();
-
-        boolean anyFlag = header || listClasses || classSize;
+        boolean anyFlag = header || listClasses || classSizeClassName != null || printClassName != null;
         if (!anyFlag) {
             header = true;
             listClasses = true;
@@ -175,19 +177,34 @@ public class Main implements Callable<Integer> {
                     }
                 }
 
-                if (classSize) {
+                if (classSizeClassName != null) {
                     ClassInfo match = null;
                     for (ClassInfo info : classes) {
-                        if (info.name().equals(className)) {
+                        if (info.name().equals(classSizeClassName)) {
                             match = info;
                             break;
                         }
                     }
                     if (match == null) {
-                        System.err.println("Class not found: " + className);
+                        System.err.println("Class not found: " + classSizeClassName);
                         return 1;
                     }
                     System.out.println(match.entry().getSize());
+                }
+
+                if (printClassName != null) {
+                    ClassInfo match = null;
+                    for (ClassInfo info : classes) {
+                        if (info.name().equals(printClassName)) {
+                            match = info;
+                            break;
+                        }
+                    }
+                    if (match == null) {
+                        System.err.println("Class not found: " + printClassName);
+                        return 1;
+                    }
+                    match.entry().print(System.out);
                 }
             }
 
