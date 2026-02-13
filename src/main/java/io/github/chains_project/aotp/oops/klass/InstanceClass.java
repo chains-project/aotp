@@ -60,6 +60,13 @@ public final class InstanceClass extends ClassEntry {
     public final long fieldInfoSearchTable;
     public final long fieldsStatus;
 
+    // Variable length attributes
+    public final long[] vtable;
+    public final long[] itable;
+    public final long[] staticField;
+    public final long[] nonStaticOopMapBlock;
+    // TODO: embedded implementor of this interface follows here
+    // This only exists if the current klass is an interface.
 
     private InstanceClass(long vTablePointer,
                           int layoutHelper,
@@ -129,7 +136,11 @@ public final class InstanceClass extends ClassEntry {
                           long defaultVtableIndices,
                           long fieldInfoStream,
                           long fieldInfoSearchTable,
-                          long fieldsStatus) {
+                          long fieldsStatus,
+                          long[] vtable,
+                          long[] itable,
+                          long[] staticField,
+                          long[] nonStaticOopMapBlock) {
         super(vTablePointer,
               layoutHelper,
               kind,
@@ -197,6 +208,10 @@ public final class InstanceClass extends ClassEntry {
         this.fieldInfoStream = fieldInfoStream;
         this.fieldInfoSearchTable = fieldInfoSearchTable;
         this.fieldsStatus = fieldsStatus;
+        this.vtable = vtable;
+        this.itable = itable;
+        this.staticField = staticField;
+        this.nonStaticOopMapBlock = nonStaticOopMapBlock;
     }
 
     /**
@@ -363,6 +378,30 @@ public final class InstanceClass extends ClassEntry {
         long fieldsStatus = ByteReader.readLongLE(bytes, pos);
         pos += 8;
 
+        long[] vtable = new long[vtableLen];
+        for (int i = 0; i < vtableLen; i++) {
+            vtable[i] = ByteReader.readLongLE(bytes, pos);
+            pos += 8;
+        }
+
+        long[] itable = new long[itableLen];
+        for (int i = 0; i < itableLen; i++) {
+            itable[i] = ByteReader.readLongLE(bytes, pos);
+            pos += 8;
+        }
+
+        long[] staticField = new long[staticFieldSize];
+        for (int i = 0; i < staticFieldSize; i++) {
+            staticField[i] = ByteReader.readLongLE(bytes, pos);
+            pos += 8;
+        }
+
+        long[] nonStaticOopMapBlock = new long[nonStaticOopMapSize];
+        for (int i = 0; i < nonStaticOopMapSize; i++) {
+            nonStaticOopMapBlock[i] = ByteReader.readLongLE(bytes, pos);
+            pos += 8;
+        }
+
         return new InstanceClass(vTablePointer,
                                  layoutHelper,
                                  kind,
@@ -429,7 +468,11 @@ public final class InstanceClass extends ClassEntry {
                                  defaultVtableIndices,
                                  fieldInfoStream,
                                  fieldInfoSearchTable,
-                                 fieldsStatus);
+                                 fieldsStatus,
+                                 vtable,
+                                 itable,
+                                 staticField,
+                                 nonStaticOopMapBlock);
     }
 }
 
