@@ -28,7 +28,7 @@ Java type: `io.github.chains_project.aotp.oops.klass.ClassEntry`
 | C++ vtable pointer (implicit, before `Klass` object)                   | `long vTablePointer` — raw address of the C++ vtable                |
 | `jint _layout_helper`                                                  | `int layoutHelper`                                                  |
 | `Klass::KlassKind _kind` (`enum KlassKind : u2`)                       | `short kind` — 16‑bit kind (stored in Java `int` field)             |
-| `KlassFlags _misc_flags` (backed by `klass_flags_t` / `u1`)            | `byte miscFlags` — 8‑bit flags (stored in Java `long` field)        |
+| `KlassFlags _misc_flags` (backed by `klass_flags_t` / `u1`)            | `byte miscFlags` — 8‑bit flags (stored in Java `byte` field)        |
 | *(padding after `_kind` / `_misc_flags`)*                               | **1 byte padding** to 8‑byte align `_super_check_offset`           |
 | `juint _super_check_offset`                                            | `int superCheckOffset`                                              |
 | *(padding after `_super_check_offset`)*                                 | **4 bytes padding** to 8‑byte align `_name` and following pointers |
