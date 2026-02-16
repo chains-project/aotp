@@ -29,6 +29,8 @@ public final class AotpApi {
     // https://github.com/openjdk/jdk/blob/6f6966b28b2c5a18b001be49f5db429c667d7a8f/src/hotspot/share/include/cds.h#L39
     private static final int AOT_MAGIC = 0xf00baba2;
 
+    private static final int AOTCONFIG_MAGIC = 0xcafea07c;
+
     private AotpApi() {}
 
     private static List<Long> getPatternsForClasses(long baseAddress) {
@@ -101,9 +103,9 @@ public final class AotpApi {
     }
 
     private static void validateMagic(GenericHeader genericHeader) throws IOException {
-        if (genericHeader.magic() != AOT_MAGIC) {
+        if (genericHeader.magic() != AOT_MAGIC && genericHeader.magic() != AOTCONFIG_MAGIC) {
             String actualMagic = String.format("%08x", genericHeader.magic());
-            throw new IOException("Invalid AOTCache file: magic number mismatch (actual: " + actualMagic + ")");
+            throw new IOException("I can only parse AOTCache and AOTConfiguration files (actual: " + actualMagic + ")");
         }
     }
 
