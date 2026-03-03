@@ -15,6 +15,7 @@ import io.github.chains_project.aotp.header.FileMapHeader;
 import io.github.chains_project.aotp.header.GenericHeader;
 import io.github.chains_project.aotp.header.RegionData;
 import io.github.chains_project.aotp.oops.klass.ClassEntry;
+import io.github.chains_project.aotp.oops.klass.ClassNames;
 import io.github.chains_project.aotp.oops.klass.InstanceClass;
 import io.github.chains_project.aotp.utils.ByteReader;
 import io.github.chains_project.aotp.utils.LittleEndianRandomAccessFile;
@@ -35,7 +36,7 @@ public final class AotpApi {
 
     private static List<Long> getPatternsForClasses(long baseAddress) {
         return List.of(
-            baseAddress + 0x0000000000001080L, // Instance classes
+            baseAddress + 0x0000000000001078L, // Instance classes
             baseAddress + 0x00000000000018f0L, // Array classes
             baseAddress + 0x0000000000001a60L, // Array classes with primitive type
             baseAddress + 0x0000000000001350L, // java.lang.Class
@@ -127,6 +128,46 @@ public final class AotpApi {
             FileMapHeader fileMapHeader = new FileMapHeader(file);
             validateMagic(genericHeader);
             FileMapHeader.print(genericHeader, regions, fileMapHeader, out);
+        } catch (EOFException e) {
+            throw new IOException("Invalid AOTCache file: file too short", e);
+        }
+    }
+
+    public static List<String> classNamesOnly(String filePath) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
+            LittleEndianRandomAccessFile file = new LittleEndianRandomAccessFile(raf);
+            GenericHeader genericHeader = new GenericHeader(file);
+            CDSFileMapRegion[] regions = new CDSFileMapRegion[5];
+            for (int i = 0; i < 5; i++) {
+                regions[i] = new CDSFileMapRegion(file);
+            }
+            FileMapHeader fileMapHeader = new FileMapHeader(file);
+            RegionData[] regionData = RegionData.loadAll(file, regions);
+            validateMagic(genericHeader);
+            RegionData rwRegionData = regionData[0];
+            if (rwRegionData.bytes().length == 0) {
+                return List.of();
+            }
+            
+            List<Long> patterns = getPatternsForClasses(fileMapHeader.requestedBaseAddress());
+        List<ClassEntry> entries = new ArrayList<>();
+        final int len = rwRegionData.bytes().length;
+        byte[] bytes = rwRegionData.bytes();
+
+        for (int offset = 0; offset + 8 <= len; offset += 8) {
+            long value = ByteReader.readLongLE(bytes, offset);
+            if (!patterns.contains(value)) {
+                continue;
+            }
+            int entryStart = offset;
+            ClassNames parsed = ClassNames.parse(bytes, entryStart);
+            String className = readSymbolName(file, parsed.namePointer(), fileMapHeader.requestedBaseAddress());
+            if (className != null) {
+                parsed.setName(className);
+                entries.add(parsed);
+            }
+        }
+        return entries.stream().map(ClassEntry::getName).toList();
         } catch (EOFException e) {
             throw new IOException("Invalid AOTCache file: file too short", e);
         }

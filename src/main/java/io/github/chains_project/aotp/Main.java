@@ -28,6 +28,10 @@ public class Main implements Callable<Integer> {
     @Option(names = "--list-classes", description = "List classes found in the RW region.")
     boolean listClasses;
 
+
+    @Option(names = "--names-only", description = "Limit parsing to only print the names of the classes. This is useful for older for my custom AOTCache implementation. https://github.com/algomaster99/jdk (supply-chain-aotcache)")
+    boolean namesOnly;
+
     @Option(names = "--class-size",
             paramLabel = "CLASS",
             description = "Print the size of the specified class.",
@@ -38,7 +42,8 @@ public class Main implements Callable<Integer> {
     public Integer call() {
         boolean anyFlag = header || listClasses
                 || (classSizeClassNames != null && !classSizeClassNames.isEmpty())
-                || printClassName != null;
+                || printClassName != null
+                || namesOnly;
         if (!anyFlag) {
             header = true;
             listClasses = true;
@@ -48,6 +53,12 @@ public class Main implements Callable<Integer> {
             if (header) {
                 AotpApi.printHeader(filePath, System.out);
                 return 0;
+            }
+
+            if (namesOnly) {
+                for (String name : AotpApi.classNamesOnly(filePath)) {
+                    System.out.println(name);
+                }
             }
 
             if (listClasses) {
