@@ -21,7 +21,7 @@ public class CDSFileMapRegion {
     int isBitmapRegion;
     int mappedFromFile;
     long fileOffset;
-    long mappingOffset;
+    public long mappingOffset;
     long used;
     long oopmapOffset;
     long oopmapSizeInBits;

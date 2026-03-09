@@ -30,6 +30,7 @@ class AotpApiTest {
         String aotPathStr = AOT_RESOURCE.toString();
         Map<String, Integer> expectedSizes = lines.stream()
                 .filter(line -> !line.isBlank())
+                .filter(line -> !line.startsWith("[")) // skip array classes (ObjArrayKlass/TypeArrayKlass)
                 .collect(Collectors.toMap(
                         line -> line.substring(0, line.lastIndexOf(',')).trim(),
                         line -> Integer.parseInt(line.substring(line.lastIndexOf(',') + 1).trim())));
