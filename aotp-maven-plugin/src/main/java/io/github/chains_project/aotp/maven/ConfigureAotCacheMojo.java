@@ -115,7 +115,8 @@ public class ConfigureAotCacheMojo extends AbstractMojo {
                     .orElse(null);
 
             if (executionArgLine != null) {
-                executionArgLine.setValue(argLine);
+                String updatedArgLine = executionArgLine.getValue() + " " + argLine;
+                executionArgLine.setValue(updatedArgLine);
             } else {
                 // No execution has argLine — use plugin-level configuration.
                 Xpp3Dom config = (Xpp3Dom) surefirePlugin.getConfiguration();
@@ -124,11 +125,14 @@ public class ConfigureAotCacheMojo extends AbstractMojo {
                     surefirePlugin.setConfiguration(config);
                 }
                 Xpp3Dom argLineNode = config.getChild("argLine");
-                if (argLineNode == null) {
+                if (argLineNode != null) {
+                    String updatedArgLine = argLineNode.getValue() + " " + argLine;
+                    argLineNode.setValue(updatedArgLine);
+                } else {
                     argLineNode = new Xpp3Dom("argLine");
                     config.addChild(argLineNode);
+                    argLineNode.setValue(argLine);
                 }
-                argLineNode.setValue(argLine);
             }
 
             try (FileWriter writer = new FileWriter(pomFile)) {
@@ -142,15 +146,14 @@ public class ConfigureAotCacheMojo extends AbstractMojo {
 
     private String buildArgLine(MavenProject project, MavenProject previousProject) {
         if (previousProject == null) {
-            return "@{surefireArgLine} -XX:AOTCacheOutput=cache.aot";
+            return "-XX:AOTCacheOutput=cache.aot";
         }
 
         Path currentDir = project.getBasedir().toPath();
         Path previousDir = previousProject.getBasedir().toPath();
-        // relativize from current to previous, e.g. fontbox -> ../io
         String relativeCachePath = currentDir.relativize(previousDir).toString().replace('\\', '/') + "/cache.aot";
 
-        return "@{surefireArgLine} -XX:AOTMode=merge -XX:AOTCache="
+        return "-XX:AOTMode=merge -XX:AOTCache="
                 + relativeCachePath + " -XX:AOTCacheOutput=cache.aot";
     }
 }
