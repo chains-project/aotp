@@ -142,7 +142,7 @@ public class ConfigureAotCacheMojo extends AbstractMojo {
 
     private String buildArgLine(MavenProject project, MavenProject previousProject) {
         if (previousProject == null) {
-            return "@{surefireArgLine} -Xlog:aot+merge=info -XX:AOTCacheOutput=cache.aot";
+            return "@{surefireArgLine} -XX:AOTCacheOutput=cache.aot";
         }
 
         Path currentDir = project.getBasedir().toPath();
@@ -150,7 +150,7 @@ public class ConfigureAotCacheMojo extends AbstractMojo {
         // relativize from current to previous, e.g. fontbox -> ../io
         String relativeCachePath = currentDir.relativize(previousDir).toString().replace('\\', '/') + "/cache.aot";
 
-        return "@{surefireArgLine} -Xlog:aot+merge=debug -XX:AOTMode=merge -XX:AOTCache="
+        return "@{surefireArgLine} -XX:AOTMode=merge -XX:AOTCache="
                 + relativeCachePath + " -XX:AOTCacheOutput=cache.aot";
     }
 }
