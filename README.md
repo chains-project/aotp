@@ -47,7 +47,7 @@ java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --print-class "java/la
 
 ### Print class sizes
 
-> [!WARNING]
+> [!CAUTION]
 > This may be wrong.
 > See [#9](https://github.com/chains-project/aotp/issues/9).
 
