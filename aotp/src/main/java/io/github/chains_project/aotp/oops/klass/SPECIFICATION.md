@@ -15,6 +15,12 @@ field remains **8‑byte aligned** in the serialized layout.
 Since AOT Cache is not a stable feature, the current layout is based on
 [OpenJDK 27+7](https://github.com/openjdk/jdk/tree/jdk-27%2B7).
 
+The only difference between JDK 27+7 and 25-open seems to the different 
+location of `access_flags`.
+See
+[8372098: Move AccessFlags to InstanceKlass](https://github.com/openjdk/jdk/commit/13e32bf1667a3be8492d1e4e3a273951202acd9c#diff-b4a457dba5fcd562206461941f548d043dae9c0033c94d6f50982a59cffd0457)
+.
+
 ---
 
 ## `Klass` header → `ClassEntry`
