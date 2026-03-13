@@ -142,6 +142,13 @@ public abstract class ClassEntry {
 
         final String name = field.getName();
         try {
+            // Special case: decode aotClassFlags as named flags
+            if ("aotClassFlags".equals(name)) {
+                short value = field.getShort(owner);
+                printLine(out, indent, name, formatAotClassFlags(value));
+                return;
+            }
+
             Class<?> fieldType = field.getType();
 
             if (fieldType == long.class) {
@@ -256,6 +263,34 @@ public abstract class ClassEntry {
 
     private static void printLine(PrintStream out, String indent, String fieldName, String value) {
         out.printf("%s%-24s %s%n", indent, fieldName, value);
+    }
+
+    /**
+	 * Decode {@code _shared_class_flags} (CDSSharedClassFlags) into a human-readable string.
+	 * See <a href="https://github.com/openjdk/jdk/blob/62c7e9aefd4320d9d0cd8fa10610f59abb4de670/src/hotspot/share/oops/klass.hpp#L176-L189">(shared_class_flags/aot_class_flags)</a>
+	 */
+    public static String formatAotClassFlags(short flags) {
+        int v = Short.toUnsignedInt(flags);
+        if (v == 0) {
+            return "0";
+        }
+        StringBuilder sb = new StringBuilder();
+        if ((v & (1 << 0)) != 0) sb.append("is_shared_class|");
+        if ((v & (1 << 1)) != 0) sb.append("archived_lambda_proxy_is_available|");
+        if ((v & (1 << 2)) != 0) sb.append("has_value_based_class_annotation|");
+        if ((v & (1 << 3)) != 0) sb.append("verified_at_dump_time|");
+        if ((v & (1 << 4)) != 0) sb.append("has_archived_enum_objs|");
+        if ((v & (1 << 5)) != 0) sb.append("is_generated_shared_class|");
+        if ((v & (1 << 6)) != 0) sb.append("has_aot_initialized_mirror|");
+        if ((v & (1 << 7)) != 0) sb.append("is_runtime_setup_required|");
+        // mask off known bits to detect unknown ones
+        int unknown = v & ~0xFF;
+        if (unknown != 0) sb.append("unknown(0x").append(Integer.toHexString(unknown)).append(")|");
+        // remove trailing '|'
+        if (!sb.isEmpty()) {
+            sb.setLength(sb.length() - 1);
+        }
+        return sb.toString();
     }
 
     public boolean isInterface() {
