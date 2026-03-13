@@ -54,3 +54,7 @@ java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --print-class "java/la
 ```shell
 java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --class-size "java/lang/String" "java/lang/Object"
 ```
+
+## Related Work
+
+[Java AOT Cache Diagnostics Tool](https://github.com/Delawen/leyden-analyzer)
