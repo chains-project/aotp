@@ -281,12 +281,15 @@ public final class InstanceClass extends ClassEntry {
         pos += 8;
         byte hashSlot = (byte) bytes[pos];
         pos += 1;
+
+        pos += 1; // 1-byte padding
+
         short sharedClassPathIndex = ByteReader.readShortLE(bytes, pos);
         pos += 2;        
         short aotClassFlags = ByteReader.readShortLE(bytes, pos);
         pos += 2;
 
-        pos += 3;
+        pos += 2;
 
         int vtableLen = ByteReader.readIntLE(bytes, pos);
         pos += 4;

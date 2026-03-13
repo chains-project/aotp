@@ -51,9 +51,10 @@ Java type: `io.github.chains_project.aotp.oops.klass.ClassEntry`
 | `markWord _prototype_header`                                           | `long prototypeHeader` — header word captured as 64‑bit value       |
 | `uintx _secondary_supers_bitmap`                                       | `long secondarySupersBitmap`                                        |
 | `uint8_t _hash_slot`                                                   | `byte hashSlot`                                                     |
+| *(padding after `_hash_slot`)*                                         | **1 byte padding** to 2‑byte align `_shared_class_path_index`       |
 | `s2 _shared_class_path_index`                                          | `short sharedClassPathIndex`                                        |
-| `u2 _aot_class_flags` (inside `#if INCLUDE_CDS`)                       | `short aotClassFlags`                                               |
-| *(padding before `_vtable_len`)*                                       | **3 bytes padding** so `int vtableLen` is 8‑byte aligned            |
+| `u2 _shared_class_flags` (inside `#if INCLUDE_CDS`)                    | `short aotClassFlags`                                               |
+| *(padding before `_vtable_len`)*                                       | **2 bytes padding** so `int vtableLen` is 4‑byte aligned            |
 | `int _vtable_len`                                                      | `int vtableLen`                                                     |
 | `int _archived_mirror_index` (inside `CDS_JAVA_HEAP_ONLY`)             | `int archivedMirrorIndex`                                           |
 | `JFR_ONLY(DEFINE_TRACE_ID_FIELD;)` (JFR trace id field, 64‑bit)        | `long jfrTrace` — trace id captured as 64‑bit value                 |
