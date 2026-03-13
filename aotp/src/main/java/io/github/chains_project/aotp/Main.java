@@ -25,8 +25,13 @@ public class Main implements Callable<Integer> {
             description = "Pretty print the fields of the specified class.")
     String printClassName;
 
-    @Option(names = "--list-classes", description = "List classes found in the RW region.")
-    boolean listClasses;
+    @Option(names = "--list-classes",
+            paramLabel = "FILTER",
+            description = "List classes found in the RW region. Optionally filter with key:value pairs "
+                        + "(e.g. aotClassFlags:has_aot_initialized_mirror,has_archived_enum_objs).",
+            arity = "0..1",
+            fallbackValue = "")
+    String listClassesFilter;
 
     @Option(names = "--class-size",
             paramLabel = "CLASS",
@@ -36,12 +41,14 @@ public class Main implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        boolean listClasses = listClassesFilter != null;
         boolean anyFlag = header || listClasses
                 || (classSizeClassNames != null && !classSizeClassNames.isEmpty())
                 || printClassName != null;
         if (!anyFlag) {
             header = true;
             listClasses = true;
+            listClassesFilter = "";
         }
 
         try {
@@ -51,8 +58,12 @@ public class Main implements Callable<Integer> {
             }
 
             if (listClasses) {
-                for (String name : AotpApi.listClassNames(filePath)) {
-                    System.out.println(name);
+                List<ClassEntry> classes = AotpApi.listClasses(filePath);
+                if (listClassesFilter != null && !listClassesFilter.isEmpty()) {
+                    classes = applyFilter(classes, listClassesFilter);
+                }
+                for (ClassEntry entry : classes) {
+                    System.out.println(entry.getName());
                 }
             }
 
@@ -75,6 +86,38 @@ public class Main implements Callable<Integer> {
             System.err.println("Error reading file: " + e.getMessage());
             return 1;
         }
+    }
+
+    /**
+     * Apply a filter string of the form {@code field:value1,value2} to a list of classes.
+     * Currently supported fields:
+     * <ul>
+     *   <li>{@code aotClassFlags} — filter by flag names (e.g. {@code has_aot_initialized_mirror})</li>
+     * </ul>
+     */
+    private static List<ClassEntry> applyFilter(List<ClassEntry> classes, String filterExpr) {
+        int colonIdx = filterExpr.indexOf(':');
+        if (colonIdx < 0) {
+            System.err.println("Invalid filter syntax. Expected field:value (e.g. aotClassFlags:has_aot_initialized_mirror)");
+            return classes;
+        }
+        String field = filterExpr.substring(0, colonIdx);
+        String[] values = filterExpr.substring(colonIdx + 1).split(",");
+
+        if ("aotClassFlags".equals(field)) {
+            return classes.stream().filter(entry -> {
+                String decoded = ClassEntry.formatAotClassFlags(entry.aotClassFlags);
+                for (String v : values) {
+                    if (!decoded.contains(v.trim())) {
+                        return false;
+                    }
+                }
+                return true;
+            }).toList();
+        }
+
+        System.err.println("Unknown filter field: " + field + ". Supported: aotClassFlags");
+        return classes;
     }
 
     public static void main(String[] args) {
