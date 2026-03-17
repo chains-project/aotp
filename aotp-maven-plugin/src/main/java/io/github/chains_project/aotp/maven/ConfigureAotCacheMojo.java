@@ -2,7 +2,9 @@ package io.github.chains_project.aotp.maven;
 
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Build;
+import org.apache.maven.model.BuildBase;
 import org.apache.maven.model.Plugin;
+import org.apache.maven.model.Profile;
 
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
@@ -87,21 +89,51 @@ public class ConfigureAotCacheMojo extends AbstractMojo {
         try (FileReader reader = new FileReader(pomFile)) {
             org.apache.maven.model.Model model = new MavenXpp3Reader().read(reader);
 
+            // Find existing surefire plugin in main build to copy options (e.g. version).
             Build build = model.getBuild();
-            if (build == null) {
-                build = new Build();
-                model.setBuild(build);
+            Plugin existingSurefire = build == null ? null : build.getPlugins().stream()
+                    .filter(p -> "maven-surefire-plugin".equals(p.getArtifactId()))
+                    .findFirst()
+                    .orElse(null);
+
+            // Find or create "iterative-merge" profile.
+            Profile profile = model.getProfiles().stream()
+                    .filter(pr -> "iterative-merge".equals(pr.getId()))
+                    .findFirst()
+                    .orElse(null);
+            if (profile == null) {
+                profile = new Profile();
+                profile.setId("iterative-merge");
+                model.addProfile(profile);
             }
 
-            Plugin surefirePlugin = build.getPlugins().stream()
+            BuildBase profileBuild = profile.getBuild();
+            if (profileBuild == null) {
+                profileBuild = new BuildBase();
+                profile.setBuild(profileBuild);
+            }
+
+            // Find or create surefire plugin in the profile, copying options from the main build.
+            Plugin surefirePlugin = profileBuild.getPlugins().stream()
                     .filter(p -> "maven-surefire-plugin".equals(p.getArtifactId()))
                     .findFirst()
                     .orElse(null);
 
             if (surefirePlugin == null) {
                 surefirePlugin = new Plugin();
+                surefirePlugin.setGroupId("org.apache.maven.plugins");
                 surefirePlugin.setArtifactId("maven-surefire-plugin");
-                build.addPlugin(surefirePlugin);
+                if (existingSurefire != null) {
+                    if (existingSurefire.getVersion() != null) {
+                        surefirePlugin.setVersion(existingSurefire.getVersion());
+                    }
+                    // Copy plugin-level configuration (argLine and all other attributes).
+                    Xpp3Dom existingConfig = (Xpp3Dom) existingSurefire.getConfiguration();
+                    if (existingConfig != null) {
+                        surefirePlugin.setConfiguration(new Xpp3Dom(existingConfig));
+                    }
+                }
+                profileBuild.addPlugin(surefirePlugin);
             }
 
             // Prefer editing argLine inside an existing execution's configuration.
