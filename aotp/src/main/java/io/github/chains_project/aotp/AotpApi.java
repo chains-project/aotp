@@ -16,6 +16,8 @@ import io.github.chains_project.aotp.header.GenericHeader;
 import io.github.chains_project.aotp.header.RegionData;
 import io.github.chains_project.aotp.oops.klass.ClassEntry;
 import io.github.chains_project.aotp.oops.klass.InstanceClass;
+import io.github.chains_project.aotp.oops.klass.ObjArrayClass;
+import io.github.chains_project.aotp.oops.klass.TypeArrayClass;
 import io.github.chains_project.aotp.utils.ByteReader;
 import io.github.chains_project.aotp.utils.LittleEndianRandomAccessFile;
 
@@ -42,7 +44,6 @@ public final class AotpApi {
     private static final int INSTANCE_MIRROR_KLASS_KIND = 3;
     private static final int INSTANCE_REF_KLASS_KIND = 4;
     private static final int INSTANCE_STACKCHUNK_KLASS_KIND = 5;
-    // TODO: these two have different layouts than instance class
     private static final int OBJ_ARRAY_KLASS_KIND = 7;
     private static final int TYPE_ARRAY_KLASS_KIND = 8;
 
@@ -73,15 +74,18 @@ public final class AotpApi {
     }
 
     private static List<Long> getPatternsForClasses(long[] vtablePointers) {
-        // Only match InstanceKlass and its subtypes — they all share the same in-memory
-        // layout that InstanceClass.parse() expects.  ObjArrayKlass and TypeArrayKlass
-        // have a different layout beyond the base Klass fields
+        // Match all klass kinds that are stored in the RW region. The vtable pointer
+        // at the start of each entry determines which concrete parse method is called:
+        // ObjArrayKlass → ObjArrayClass.parse(), TypeArrayKlass → TypeArrayClass.parse(),
+        // all InstanceKlass variants → InstanceClass.parse().
         return List.of(
             vtablePointers[INSTANCE_KLASS_KIND],
             vtablePointers[INSTANCE_CLASSLOADER_KLASS_KIND],
             vtablePointers[INSTANCE_MIRROR_KLASS_KIND],
             vtablePointers[INSTANCE_REF_KLASS_KIND],
-            vtablePointers[INSTANCE_STACKCHUNK_KLASS_KIND]
+            vtablePointers[INSTANCE_STACKCHUNK_KLASS_KIND],
+            vtablePointers[OBJ_ARRAY_KLASS_KIND],
+            vtablePointers[TYPE_ARRAY_KLASS_KIND]
         );
     }
 
@@ -96,6 +100,8 @@ public final class AotpApi {
         long rwMappingOffset = rwRegionData.region().mappingOffset;
         long[] vtablePointers = readClonedVtablePointers(bytes, rwMappingOffset, requestedBaseAddress);
         List<Long> patterns = getPatternsForClasses(vtablePointers);
+        long objArrayVtable = vtablePointers[OBJ_ARRAY_KLASS_KIND];
+        long typeArrayVtable = vtablePointers[TYPE_ARRAY_KLASS_KIND];
         List<ClassEntry> entries = new ArrayList<>();
         final int len = bytes.length;
 
@@ -105,7 +111,14 @@ public final class AotpApi {
                 continue;
             }
             int entryStart = offset;
-            InstanceClass parsed = InstanceClass.parse(bytes, entryStart);
+            ClassEntry parsed;
+            if (value == objArrayVtable) {
+                parsed = ObjArrayClass.parse(bytes, entryStart);
+            } else if (value == typeArrayVtable) {
+                parsed = TypeArrayClass.parse(bytes, entryStart);
+            } else {
+                parsed = InstanceClass.parse(bytes, entryStart);
+            }
             String className = readSymbolName(file, parsed.namePointer(), requestedBaseAddress);
             if (className != null) {
                 parsed.setName(className);
