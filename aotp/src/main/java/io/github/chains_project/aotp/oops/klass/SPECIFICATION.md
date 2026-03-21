@@ -124,3 +124,57 @@ and follow the same “pointer → `long` address” convention.
 
 > † These fields are not modeled in Java because they are only available in DEBUG builds
 > and [AOT Cache features do not exist in DEBUG builds](https://bugs.openjdk.org/browse/JDK-8301715).
+
+---
+
+## `ArrayKlass` → `ArrayClass`
+
+Source: `src/hotspot/share/oops/arrayKlass.hpp`
+
+Java type: `io.github.chains_project.aotp.oops.klass.ArrayClass`
+
+All fields below are *in addition to* the `ClassEntry` header fields above,
+and follow immediately after the 200-byte `Klass` header in the serialized layout.
+
+| Original HotSpot field (type name)                              | Java abstraction (type and field)                                       |
+|-----------------------------------------------------------------|-------------------------------------------------------------------------|
+| `int _dimension`                                                | `int dimension` — which dimension of a multi-dimensional array this is  |
+| *(padding after `_dimension`)*                                  | **4 bytes padding** to 8-byte align `_higher_dimension`                 |
+| `ObjArrayKlass* volatile _higher_dimension`                     | `long higherDimension` — pointer to the (n+1)th-dimensional array klass |
+| `ArrayKlass* volatile _lower_dimension`                         | `long lowerDimension` — pointer to the (n-1)th-dimensional array klass  |
+
+Total fixed header addition: **24 bytes** (4 + 4 padding + 8 + 8).
+
+---
+
+## `ObjArrayKlass` → `ObjArrayClass`
+
+Source: `src/hotspot/share/oops/objArrayKlass.hpp`
+
+Java type: `io.github.chains_project.aotp.oops.klass.ObjArrayClass`
+
+All fields below are *in addition to* the `ArrayClass` header fields above.
+
+| Original HotSpot field (type name)  | Java abstraction (type and field)                                   |
+|-------------------------------------|---------------------------------------------------------------------|
+| `Klass* _element_klass`             | `long elementKlass` — pointer to the element type klass             |
+| `Klass* _bottom_klass`              | `long bottomKlass` — pointer to the one-dimensional base type klass |
+
+Total fixed header addition: **16 bytes** (8 + 8).
+
+---
+
+## `TypeArrayKlass` → `TypeArrayClass`
+
+Source: `src/hotspot/share/oops/typeArrayKlass.hpp`
+
+Java type: `io.github.chains_project.aotp.oops.klass.TypeArrayClass`
+
+All fields below are *in addition to* the `ArrayClass` header fields above.
+
+| Original HotSpot field (type name)  | Java abstraction (type and field)                                           |
+|-------------------------------------|-----------------------------------------------------------------------------|
+| `jint _max_length`                  | `int maxLength` — maximum number of elements allowed in an array instance   |
+| *(trailing struct padding)*         | **4 bytes padding** to keep struct size a multiple of 8 (pointer alignment) |
+
+Total fixed header addition: **8 bytes** (4 + 4 padding).
