@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
+import io.github.chains_project.aotp.oops.cp.ConstantPool;
+import io.github.chains_project.aotp.oops.cp.ConstantPoolEntry;
 import io.github.chains_project.aotp.oops.klass.ClassEntry;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -39,12 +41,20 @@ public class Main implements Callable<Integer> {
             arity = "1..*")
     List<String> classSizeClassNames;
 
+    @Option(names = "--list-constant-pools",
+            paramLabel = "CLASS",
+            description = "Print constant pool entries for all classes, or only for the specified class.",
+            arity = "0..1",
+            fallbackValue = "")
+    String listCpFilter;
+
     @Override
     public Integer call() {
         boolean listClasses = listClassesFilter != null;
+        boolean listCp = listCpFilter != null;
         boolean anyFlag = header || listClasses
                 || (classSizeClassNames != null && !classSizeClassNames.isEmpty())
-                || printClassName != null;
+                || printClassName != null || listCp;
         if (!anyFlag) {
             header = true;
             listClasses = true;
@@ -78,6 +88,19 @@ public class Main implements Callable<Integer> {
                 if (!AotpApi.printClass(filePath, printClassName, System.out)) {
                     System.err.println("Class not found: " + printClassName);
                     return 1;
+                }
+            }
+
+            if (listCp) {
+                List<ConstantPool> cps = AotpApi.listConstantPools(filePath);
+                for (ConstantPool cp : cps) {
+                    if (!listCpFilter.isEmpty() && !cp.className().equals(listCpFilter)) {
+                        continue;
+                    }
+                    System.out.println("=== " + cp.className() + " ===");
+                    for (ConstantPoolEntry e : cp.entries()) {
+                        System.out.printf("  [%4d] %-26s %s%n", e.index(), e.tagName(), e.value());
+                    }
                 }
             }
 
