@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
+import io.github.chains_project.aotp.oops.cp.ConstantPool;
+import io.github.chains_project.aotp.oops.cp.ConstantPoolEntry;
 import io.github.chains_project.aotp.oops.klass.ClassEntry;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -39,12 +41,25 @@ public class Main implements Callable<Integer> {
             arity = "1..*")
     List<String> classSizeClassNames;
 
+    @Option(names = "--list-constant-pools",
+            paramLabel = "CLASS",
+            description = "Print constant pool entries for all classes, or only for the specified class.",
+            arity = "0..1",
+            fallbackValue = "")
+    String listCpFilter;
+
+    @Option(names = "--print-constant-pool",
+            paramLabel = "CLASS",
+            description = "Print constant pool entries for the specified class.")
+    String printConstantPoolClassName;
+
     @Override
     public Integer call() {
         boolean listClasses = listClassesFilter != null;
+        boolean listCp = listCpFilter != null;
         boolean anyFlag = header || listClasses
                 || (classSizeClassNames != null && !classSizeClassNames.isEmpty())
-                || printClassName != null;
+                || printClassName != null || listCp || printConstantPoolClassName != null;
         if (!anyFlag) {
             header = true;
             listClasses = true;
@@ -79,6 +94,22 @@ public class Main implements Callable<Integer> {
                     System.err.println("Class not found: " + printClassName);
                     return 1;
                 }
+            }
+
+            if (listCp) {
+                List<ConstantPool> cps = listCpFilter.isEmpty()
+                        ? AotpApi.listConstantPools(filePath)
+                        : AotpApi.listConstantPools(filePath, listCpFilter);
+                printConstantPools(cps);
+            }
+
+            if (printConstantPoolClassName != null) {
+                List<ConstantPool> cps = AotpApi.listConstantPools(filePath, printConstantPoolClassName);
+                if (cps.isEmpty()) {
+                    System.err.println("Class not found: " + printConstantPoolClassName);
+                    return 1;
+                }
+                printConstantPools(cps);
             }
 
             return 0;
@@ -118,6 +149,15 @@ public class Main implements Callable<Integer> {
 
         System.err.println("Unknown filter field: " + field + ". Supported: aotClassFlags");
         return classes;
+    }
+
+    private static void printConstantPools(List<ConstantPool> cps) {
+        for (ConstantPool cp : cps) {
+            System.out.println("=== " + cp.className() + " ===");
+            for (ConstantPoolEntry e : cp.entries()) {
+                System.out.printf("  [%4d] %-26s %s%n", e.index(), e.tagName(), e.value());
+            }
+        }
     }
 
     public static void main(String[] args) {

@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
+import io.github.chains_project.aotp.oops.cp.ConstantPool;
 import io.github.chains_project.aotp.oops.klass.ClassEntry;
 
 class AotpApiTest {
@@ -52,5 +53,16 @@ class AotpApiTest {
             assertEquals(expectedSizes.get(className), entry.getValue(),
                     "Class size mismatch for: " + className);
         }
+    }
+    @Test
+    void readsOnlyRequestedClassFromAotConstantPools() throws IOException {
+        List<ConstantPool> expected = AotpApi.listConstantPools(AOT_RESOURCE.toString()).stream()
+                .filter(cp -> cp.className().equals("java/lang/String"))
+                .toList();
+        List<ConstantPool> actual = AotpApi.listConstantPools(AOT_RESOURCE.toString(), "java/lang/String");
+
+        assertEquals(expected, actual);
+        assertEquals(1, actual.size());
+        assertEquals("java/lang/String", actual.get(0).className());
     }
 }
