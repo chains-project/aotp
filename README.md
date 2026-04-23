@@ -55,6 +55,20 @@ java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --print-class "java/la
 java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --class-size "java/lang/String" "java/lang/Object"
 ```
 
+### Print constant pools
+
+Print all constant pools:
+
+```shell
+java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --list-constant-pools
+```
+
+Print one class's constant pool:
+
+```shell
+java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --print-constant-pool "org/apache/pdfbox/tools/TextToPDF"
+```
+
 ## Related Work
 
 [Java AOT Cache Diagnostics Tool](https://github.com/Delawen/leyden-analyzer)

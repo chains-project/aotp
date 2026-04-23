@@ -321,6 +321,19 @@ public final class AotpApi {
      * @throws IOException if the file cannot be read or is invalid
      */
     public static List<ConstantPool> listConstantPools(String filePath) throws IOException {
+        return listConstantPools(filePath, null);
+    }
+
+    /**
+     * Returns the constant pool entries for every {@code InstanceClass} found in the AOT cache,
+     * optionally filtering to one exact class name.
+     *
+     * @param filePath path to the AOT cache file
+     * @param className exact internal JVM class name, or null to return all constant pools
+     * @return list of {@link ConstantPool}, one per matching instance class (never null)
+     * @throws IOException if the file cannot be read or is invalid
+     */
+    public static List<ConstantPool> listConstantPools(String filePath, String className) throws IOException {
         try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
             LittleEndianRandomAccessFile file = new LittleEndianRandomAccessFile(raf);
             GenericHeader genericHeader = new GenericHeader(file);
@@ -339,6 +352,9 @@ public final class AotpApi {
             List<ClassEntry> classes = loadClasses(file, rwRegionData, requestedBaseAddress);
             List<ConstantPool> result = new ArrayList<>();
             for (ClassEntry entry : classes) {
+                if (className != null && !className.equals(entry.getName())) {
+                    continue;
+                }
                 if (entry instanceof InstanceClass klass) {
                     result.add(loadConstantPool(file, klass, requestedBaseAddress));
                 }

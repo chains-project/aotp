@@ -48,13 +48,18 @@ public class Main implements Callable<Integer> {
             fallbackValue = "")
     String listCpFilter;
 
+    @Option(names = "--print-constant-pool",
+            paramLabel = "CLASS",
+            description = "Print constant pool entries for the specified class.")
+    String printConstantPoolClassName;
+
     @Override
     public Integer call() {
         boolean listClasses = listClassesFilter != null;
         boolean listCp = listCpFilter != null;
         boolean anyFlag = header || listClasses
                 || (classSizeClassNames != null && !classSizeClassNames.isEmpty())
-                || printClassName != null || listCp;
+                || printClassName != null || listCp || printConstantPoolClassName != null;
         if (!anyFlag) {
             header = true;
             listClasses = true;
@@ -92,16 +97,19 @@ public class Main implements Callable<Integer> {
             }
 
             if (listCp) {
-                List<ConstantPool> cps = AotpApi.listConstantPools(filePath);
-                for (ConstantPool cp : cps) {
-                    if (!listCpFilter.isEmpty() && !cp.className().equals(listCpFilter)) {
-                        continue;
-                    }
-                    System.out.println("=== " + cp.className() + " ===");
-                    for (ConstantPoolEntry e : cp.entries()) {
-                        System.out.printf("  [%4d] %-26s %s%n", e.index(), e.tagName(), e.value());
-                    }
+                List<ConstantPool> cps = listCpFilter.isEmpty()
+                        ? AotpApi.listConstantPools(filePath)
+                        : AotpApi.listConstantPools(filePath, listCpFilter);
+                printConstantPools(cps);
+            }
+
+            if (printConstantPoolClassName != null) {
+                List<ConstantPool> cps = AotpApi.listConstantPools(filePath, printConstantPoolClassName);
+                if (cps.isEmpty()) {
+                    System.err.println("Class not found: " + printConstantPoolClassName);
+                    return 1;
                 }
+                printConstantPools(cps);
             }
 
             return 0;
@@ -141,6 +149,15 @@ public class Main implements Callable<Integer> {
 
         System.err.println("Unknown filter field: " + field + ". Supported: aotClassFlags");
         return classes;
+    }
+
+    private static void printConstantPools(List<ConstantPool> cps) {
+        for (ConstantPool cp : cps) {
+            System.out.println("=== " + cp.className() + " ===");
+            for (ConstantPoolEntry e : cp.entries()) {
+                System.out.printf("  [%4d] %-26s %s%n", e.index(), e.tagName(), e.value());
+            }
+        }
     }
 
     public static void main(String[] args) {
