@@ -63,6 +63,6 @@ class AotpApiTest {
 
         assertEquals(expected, actual);
         assertEquals(1, actual.size());
-        assertEquals("java/lang/String", actual.getFirst().className());
+        assertEquals("java/lang/String", actual.get(0).className());
     }
 }
