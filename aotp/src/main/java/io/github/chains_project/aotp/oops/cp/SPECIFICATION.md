@@ -1,7 +1,7 @@
 ## Overview
 
 This document describes how HotSpot's C++ `ConstantPool` structure
-(from [`src/hotspot/share/oops/constantPool.hpp`](https://github.com/openjdk/jdk/blob/jdk-27%2B7/src/hotspot/share/oops/constantPool.hpp))
+(from [`src/hotspot/share/oops/constantPool.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/constantPool.hpp))
 is parsed into the Java-side abstractions `ConstantPool` and `ConstantPoolEntry`
 under `io.github.chains_project.aotp.oops.cp`.
 
@@ -10,13 +10,28 @@ are 64-bit absolute addresses resolved via `absoluteAddress - requestedBaseAddre
 to obtain the file offset, following the same convention as `InstanceClass` parsing.
 
 The layout is based on
-[OpenJDK 27+7](https://github.com/openjdk/jdk/blob/jdk-27%2B7/src/hotspot/share/oops/constantPool.hpp).
+[OpenJDK 25+36](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/constantPool.hpp).
+
+This specification intentionally targets the JDK 25+36 `ConstantPool` layout used by this parser.
+Later JDK revisions changed this area of HotSpot. In particular, newer revisions add
+`BSMAttributeEntries _bsm_entries`; that newer layout is not what this file describes.
+
+### Relevant OpenJDK sources
+
+- [`src/hotspot/share/oops/constantPool.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/constantPool.hpp) — `ConstantPool` layout, tag constants, `*_at_put` / `*_at_addr` accessors, `CPKlassSlot`.
+- [`src/hotspot/share/oops/constantPool.cpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/constantPool.cpp) — runtime behavior around resolution and constant-pool manipulation.
+- [`src/hotspot/share/oops/array.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/array.hpp) — `Array<T>` object layout used by `_tags`, `_operands`, and `_resolved_klasses`.
+- [`src/hotspot/share/oops/symbol.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/symbol.hpp) — `Symbol` header and body layout used for `Utf8`/`String`/`UnresolvedClass`.
+- [`src/hotspot/share/oops/metadata.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/metadata.hpp) — `Metadata` base type that contributes the vtable/header portion.
+- [`src/hotspot/share/utilities/globalDefinitions.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/utilities/globalDefinitions.hpp) — word-size/alignment helpers referenced by `header_size()` and `size()`.
 
 ---
 
 ## `ConstantPool` struct → `ConstantPool` record
 
-Source: `src/hotspot/share/oops/constantPool.hpp`, `class ConstantPool : public Metadata`
+Source:
+- [`src/hotspot/share/oops/constantPool.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/constantPool.hpp)
+- [`src/hotspot/share/oops/metadata.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/metadata.hpp)
 
 Java type: `io.github.chains_project.aotp.oops.cp.ConstantPool`
 
@@ -28,11 +43,20 @@ static int header_size() { return align_up((int)sizeof(ConstantPool), wordSize) 
 static int size(int length) { return align_metadata_size(header_size() + length); }
 ```
 
-`sizeof(ConstantPool)` = **72 bytes** (9 words).
-The 4 bytes of trailing struct padding after `_saved` bring the total from 68 to
-72, satisfying the 8-byte alignment requirement of the largest member (pointer fields).
+For the layout this parser currently models on a 64-bit build, `sizeof(ConstantPool)` is
+**72 bytes** (9 words).
 
-Total on-disk size of a ConstantPool with `_length` entries:
+`base()` in `constantPool.hpp` shows that the slot storage starts immediately after
+the fixed-size object:
+
+```cpp
+intptr_t* base() const { return (intptr_t*) (((char*) this) + sizeof(ConstantPool)); }
+```
+
+So the trailing constant-pool slot storage is not declared as a C++ field like
+`intptr_t data[_length]`; it is implicit trailing storage addressed from `base()`.
+
+Total on-disk size of a `ConstantPool` with `_length` slot words:
 ```
 total_bytes = (9 + _length) * 8 = 72 + _length * 8
 ```
@@ -56,18 +80,20 @@ All offsets are in bytes from the start of the `ConstantPool` object.
 | 50     | `u2 _minor_version`                       | 2    | Class file minor version; skipped.                    |
 | 52     | `u2 _generic_signature_index`             | 2    | CP index of generic signature Utf8, or 0; skipped.    |
 | 54     | `u2 _source_file_name_index`              | 2    | CP index of source file name Utf8, or 0; skipped.     |
-| 56     | `u2 _flags`                               | 2    | Internal flags (`_has_preresolution`, `_is_shared`, …); skipped. |
+| 56     | `u2 _flags`                               | 2    | Internal flags; skipped.                              |
 | 58     | *(padding)*                               | 2    | Compiler-inserted padding to 4-byte-align `_length`.  |
-| 60     | `int _length`                             | 4    | Number of CP entries (indices 0 … `_length-1`). Index 0 is always unused/invalid. |
+| 60     | `int _length`                             | 4    | Number of CP entries (indices `0 .. _length-1`). Index 0 is always unused/invalid. |
 | 64     | `union { int _resolved_reference_length; int _version; } _saved` | 4 | Union for CDS/redefinition; skipped. |
 | 68     | *(trailing struct padding)*               | 4    | C++ struct padding to reach `sizeof(ConstantPool) = 72`. |
-| **72** | **inline CP data** `intptr_t[_length]`    | `_length × 8` | Each slot is one `intptr_t` (8 bytes). The accessor used — `obj_at_addr`, `int_at_addr`, `long_at_addr` — depends on the tag. |
+| **72** | **trailing CP slot storage accessed via `base()`** | `_length × 8` | Each slot occupies one machine word (`intptr_t`). The accessor used — `obj_at_addr`, `int_at_addr`, `long_at_addr` — depends on the tag. |
 
 ---
 
 ## `Array<u1>` tag array → `byte[]`
 
 The pointer at offset 8 (`_tags`) points to an `Array<u1>` in the RO region.
+See [`src/hotspot/share/oops/array.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/array.hpp)
+for the generic `Array<T>` header layout.
 
 | Offset | C++ field         | Size          | Notes                                     |
 |--------|-------------------|---------------|-------------------------------------------|
@@ -85,7 +111,11 @@ tagsFileOffset = _tags - requestedBaseAddress
 
 Each slot in the inline data array is 8 bytes wide (`intptr_t`). The used portion
 depends on the tag as follows (derived from the `*_at_put` methods in
-`constantPool.hpp`).
+[`src/hotspot/share/oops/constantPool.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/constantPool.hpp)).
+
+For tag definitions, also cross-check:
+- `JVM_CONSTANT_*` values in `constantPool.hpp`
+- the `constantTag` helper type in [`src/hotspot/share/utilities/constantTag.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/utilities/constantTag.hpp)
 
 | Tag (numeric) | Tag name                  | Accessor         | Slot encoding                                                                   |
 |---------------|---------------------------|------------------|---------------------------------------------------------------------------------|
@@ -118,6 +148,7 @@ depends on the tag as follows (derived from the `*_at_put` methods in
 
 `Utf8`, `String`, `UnresolvedClass`, and `UnresolvedClassInError` slots store a
 `Symbol*`. The body is read from the file at `symbolFileOffset = symbolAddr - requestedBaseAddress`.
+See [`src/hotspot/share/oops/symbol.hpp`](https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/hotspot/share/oops/symbol.hpp).
 
 | Offset | C++ field                   | Size       | Notes                                      |
 |--------|-----------------------------|------------|--------------------------------------------|
