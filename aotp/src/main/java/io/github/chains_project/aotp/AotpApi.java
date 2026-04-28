@@ -16,6 +16,7 @@ import io.github.chains_project.aotp.header.GenericHeader;
 import io.github.chains_project.aotp.header.RegionData;
 import io.github.chains_project.aotp.oops.cp.ConstantPool;
 import io.github.chains_project.aotp.oops.cp.ConstantPoolEntry;
+import io.github.chains_project.aotp.oops.cp.ConstantPoolHeader;
 import io.github.chains_project.aotp.oops.klass.ClassEntry;
 import io.github.chains_project.aotp.oops.klass.InstanceClass;
 import io.github.chains_project.aotp.oops.klass.ObjArrayClass;
@@ -401,12 +402,12 @@ public final class AotpApi {
             InstanceClass klass, long requestedBaseAddress) throws IOException {
         long cpAbsAddr = klass.constants;
         if (cpAbsAddr == 0) {
-            return new ConstantPool(klass.getName(), List.of());
+            return new ConstantPool(klass.getName(), null, List.of());
         }
         long cpFileOffset = cpAbsAddr - requestedBaseAddress;
         long fileLen = file.length();
         if (cpFileOffset < 0 || cpFileOffset + CP_HEADER_SIZE > fileLen) {
-            return new ConstantPool(klass.getName(), List.of());
+            return new ConstantPool(klass.getName(), null, List.of());
         }
 
         long savedPos = file.getFilePointer();
@@ -414,20 +415,41 @@ public final class AotpApi {
             file.seek(cpFileOffset);
             file.skipBytes(8);                   // vtable pointer
             long tagsPointer = file.readLong();  // _tags
-            file.skipBytes(8 * 4);               // _cache, _pool_holder, _operands, _resolved_klasses
-            file.skipBytes(5 * 2);               // five u2 fields
+            long cachePointer = file.readLong();
+            long poolHolderPointer = file.readLong();
+            long operandsPointer = file.readLong();
+            long resolvedKlassesPointer = file.readLong();
+            int majorVersion = file.readShort() & 0xFFFF;
+            int minorVersion = file.readShort() & 0xFFFF;
+            int genericSignatureIndex = file.readShort() & 0xFFFF;
+            int sourceFileNameIndex = file.readShort() & 0xFFFF;
+            int flags = file.readShort() & 0xFFFF;
             file.skipBytes(2);                   // padding between u2 block and _length
             int length = file.readInt();         // _length  (now at offset 64)
-            file.skipBytes(4);                   // _saved   (now at offset 68)
+            int saved = file.readInt();          // _saved   (now at offset 68)
             file.skipBytes(4);                   // trailing struct padding — sizeof(ConstantPool)=72
 
+            ConstantPoolHeader cpHeader = new ConstantPoolHeader(
+                    tagsPointer,
+                    cachePointer,
+                    poolHolderPointer,
+                    operandsPointer,
+                    resolvedKlassesPointer,
+                    majorVersion,
+                    minorVersion,
+                    genericSignatureIndex,
+                    sourceFileNameIndex,
+                    flags,
+                    length,
+                    saved);
+
             if (length <= 0 || length > 100_000) {
-                return new ConstantPool(klass.getName(), List.of());
+                return new ConstantPool(klass.getName(), cpHeader, List.of());
             }
 
             byte[] tags = readTagsArray(file, tagsPointer, requestedBaseAddress, length);
             if (tags == null) {
-                return new ConstantPool(klass.getName(), List.of());
+                return new ConstantPool(klass.getName(), cpHeader, List.of());
             }
 
             long cpDataOffset = cpFileOffset + CP_HEADER_SIZE;
@@ -449,7 +471,7 @@ public final class AotpApi {
                     i++;
                 }
             }
-            return new ConstantPool(klass.getName(), entries);
+            return new ConstantPool(klass.getName(), cpHeader, entries);
         } finally {
             file.seek(savedPos);
         }

@@ -7,6 +7,7 @@ import java.util.concurrent.Callable;
 
 import io.github.chains_project.aotp.oops.cp.ConstantPool;
 import io.github.chains_project.aotp.oops.cp.ConstantPoolEntry;
+import io.github.chains_project.aotp.oops.cp.ConstantPoolHeader;
 import io.github.chains_project.aotp.oops.klass.ClassEntry;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -57,9 +58,10 @@ public class Main implements Callable<Integer> {
     public Integer call() {
         boolean listClasses = listClassesFilter != null;
         boolean listCp = listCpFilter != null;
+        boolean printSingleCp = printConstantPoolClassName != null;
         boolean anyFlag = header || listClasses
                 || (classSizeClassNames != null && !classSizeClassNames.isEmpty())
-                || printClassName != null || listCp || printConstantPoolClassName != null;
+                || printClassName != null || listCp || printSingleCp;
         if (!anyFlag) {
             header = true;
             listClasses = true;
@@ -69,7 +71,13 @@ public class Main implements Callable<Integer> {
         try {
             if (header) {
                 AotpApi.printHeader(filePath, System.out);
-                return 0;
+                if (header && !listClasses
+                        && (classSizeClassNames == null || classSizeClassNames.isEmpty())
+                        && printClassName == null
+                        && !listCp
+                        && !printSingleCp) {
+                    return 0;
+                }
             }
 
             if (listClasses) {
@@ -103,7 +111,7 @@ public class Main implements Callable<Integer> {
                 printConstantPools(cps);
             }
 
-            if (printConstantPoolClassName != null) {
+            if (printSingleCp) {
                 List<ConstantPool> cps = AotpApi.listConstantPools(filePath, printConstantPoolClassName);
                 if (cps.isEmpty()) {
                     System.err.println("Class not found: " + printConstantPoolClassName);
@@ -152,8 +160,24 @@ public class Main implements Callable<Integer> {
     }
 
     private static void printConstantPools(List<ConstantPool> cps) {
+        // Each `cp` is the entire constant pool structure of a class.
         for (ConstantPool cp : cps) {
             System.out.println("=== " + cp.className() + " ===");
+            ConstantPoolHeader header = cp.header();
+            if (header != null) {
+                System.out.printf("  - tags:                  0x%x%n", header.tagsPointer());
+                System.out.printf("  - cache:                 0x%x%n", header.cachePointer());
+                System.out.printf("  - pool_holder:           0x%x%n", header.poolHolderPointer());
+                System.out.printf("  - operands:              0x%x%n", header.operandsPointer());
+                System.out.printf("  - resolved_klasses:      0x%x%n", header.resolvedKlassesPointer());
+                System.out.printf("  - major_version:         %d%n", header.majorVersion());
+                System.out.printf("  - minor_version:         %d%n", header.minorVersion());
+                System.out.printf("  - generic_sig_index:     %d%n", header.genericSignatureIndex());
+                System.out.printf("  - source_file_index:     %d%n", header.sourceFileNameIndex());
+                System.out.printf("  - flags:                 0x%04x%n", header.flags());
+                System.out.printf("  - length:                %d%n", header.length());
+                System.out.printf("  - saved:                 %d%n", header.saved());
+            }
             for (ConstantPoolEntry e : cp.entries()) {
                 System.out.printf("  [%4d] %-26s %s%n", e.index(), e.tagName(), e.value());
             }
