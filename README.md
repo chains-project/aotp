@@ -71,6 +71,23 @@ java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --print-constant-pool 
 
 `--print-constant-pool` prints the file map header first, then the requested class's constant pool.
 
+### Integrity check
+
+Verify that an AOT cache was built from a specific set of JARs. Detects version mismatches (stale cache after a dependency upgrade) and tampered caches (injected symbols).
+
+```shell
+java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --check-integrity lib1.jar lib2.jar ...
+```
+
+The report has three sections:
+
+- **matched** — classes present in both the JARs and the AOT cache with identical constant pool symbols
+- **mismatched** — classes whose constant pool differs; each entry shows `missingSymbols` (in JAR but absent from AOT) and `addedSymbols` (in AOT but absent from JAR, indicating injection or a version change)
+- **stale** — application classes in the AOT cache with no corresponding class in the supplied JARs
+
+The check uses constant pool Utf8 entries (method/field names, type descriptors, string literals) as the comparison unit.
+If a method signature or class reference changed, the descriptor Utf8 changes and is caught here.
+
 ## Related Work
 
 [Java AOT Cache Diagnostics Tool](https://github.com/Delawen/leyden-analyzer)

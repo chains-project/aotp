@@ -1,10 +1,14 @@
 package io.github.chains_project.aotp;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
+import io.github.chains_project.aotp.integrity.ClassMismatch;
+import io.github.chains_project.aotp.integrity.IntegrityChecker;
+import io.github.chains_project.aotp.integrity.IntegrityReport;
 import io.github.chains_project.aotp.oops.cp.ConstantPool;
 import io.github.chains_project.aotp.oops.cp.ConstantPoolEntry;
 import io.github.chains_project.aotp.oops.cp.ConstantPoolHeader;
@@ -54,14 +58,21 @@ public class Main implements Callable<Integer> {
             description = "Print constant pool entries for the specified class.")
     String printConstantPoolClassName;
 
+    @Option(names = "--check-integrity",
+            paramLabel = "JAR",
+            description = "Verify the AOT cache was built from the given JAR files.",
+            arity = "1..*")
+    List<String> integrityJarPaths;
+
     @Override
     public Integer call() {
         boolean listClasses = listClassesFilter != null;
         boolean listCp = listCpFilter != null;
         boolean printSingleCp = printConstantPoolClassName != null;
+        boolean checkIntegrity = integrityJarPaths != null && !integrityJarPaths.isEmpty();
         boolean anyFlag = header || listClasses
                 || (classSizeClassNames != null && !classSizeClassNames.isEmpty())
-                || printClassName != null || listCp || printSingleCp;
+                || printClassName != null || listCp || printSingleCp || checkIntegrity;
         if (!anyFlag) {
             header = true;
             listClasses = true;
@@ -118,6 +129,12 @@ public class Main implements Callable<Integer> {
                     return 1;
                 }
                 printConstantPools(cps);
+            }
+
+            if (checkIntegrity) {
+                List<Path> jarPaths = integrityJarPaths.stream().map(Path::of).toList();
+                IntegrityReport report = IntegrityChecker.check(jarPaths, filePath);
+                printIntegrityReport(report);
             }
 
             return 0;
@@ -182,6 +199,41 @@ public class Main implements Callable<Integer> {
             System.out.printf("  [%4d] %-26s %s%n", 0, "Invalid", "Unused; index 0 always has this tag.");
             for (ConstantPoolEntry e : cp.entries()) {
                 System.out.printf("  [%4d] %-26s %s%n", e.index(), e.tagName(), e.value());
+            }
+        }
+    }
+
+    private static void printIntegrityReport(IntegrityReport report) {
+        System.out.printf("Matched:        %d class(es)%n", report.matchedClasses().size());
+        System.out.printf("Stale in cache: %d class(es)%n", report.staleInCache().size());
+        System.out.printf("Mismatched:     %d class(es)%n", report.mismatchedClasses().size());
+
+        if (!report.staleInCache().isEmpty()) {
+            System.out.println("\n--- Stale in cache (app classes in AOT but not in any JAR;"
+                    + " java.*, javax.*, sun.*, jdk.*, com.sun.*, org.xml.*, org.w3c.*, org.ietf.*, org.jcp.* and hidden/lambda classes excluded) ---");
+            for (String c : report.staleInCache()) {
+                System.out.println("  " + c);
+            }
+        }
+
+        if (!report.mismatchedClasses().isEmpty()) {
+            System.out.println("\n--- Mismatched classes ---");
+            for (ClassMismatch m : report.mismatchedClasses()) {
+                System.out.println("  " + m.className()
+                        + " (" + m.missingSymbols().size() + " injected, "
+                        + m.addedSymbols().size() + " removed)");
+                if (!m.missingSymbols().isEmpty()) {
+                    System.out.println("    [injected into JAR, absent from AOT]");
+                    for (String sym : m.missingSymbols()) {
+                        System.out.println("      + " + sym);
+                    }
+                }
+                if (!m.addedSymbols().isEmpty()) {
+                    System.out.println("    [present in AOT, removed from JAR]");
+                    for (String sym : m.addedSymbols()) {
+                        System.out.println("      - " + sym);
+                    }
+                }
             }
         }
     }
