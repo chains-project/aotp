@@ -6,6 +6,7 @@ import java.util.List;
  * The constant pool of a single class as stored in the AOT cache.
  *
  * @param className fully-qualified class name (e.g. {@code java/lang/String})
+ * @param header    parsed constant pool header metadata (null when unavailable)
  * @param entries   ordered list of CP entries, starting at index 1
  */
-public record ConstantPool(String className, List<ConstantPoolEntry> entries) {}
+public record ConstantPool(String className, ConstantPoolHeader header, List<ConstantPoolEntry> entries) {}

@@ -69,6 +69,8 @@ Print one class's constant pool:
 java -jar aotp/target/aotp-0.0.1-SNAPSHOT.jar <cache.aot> --print-constant-pool "org/apache/pdfbox/tools/TextToPDF"
 ```
 
+`--print-constant-pool` prints the file map header first, then the requested class's constant pool.
+
 ## Related Work
 
 [Java AOT Cache Diagnostics Tool](https://github.com/Delawen/leyden-analyzer)
