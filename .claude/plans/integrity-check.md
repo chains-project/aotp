@@ -2,97 +2,96 @@
 
 ## Goal
 
-Given a set of JAR files and a merged AOT cache, verify the AOT cache was built from those exact JARs (not a different version of any library). Detects stale caches after a dependency upgrade.
+Given a set of JAR files and a merged AOT cache, verify the AOT cache was built from those exact JARs (not a different version of any library). Detects stale caches after a dependency upgrade and tampered caches that contain injected symbols.
 
 ---
 
 ## What already works on the AOT side
 
-`AotpApi.listConstantPools()` is already implemented and returns `ConstantPool` records per class, each with typed `ConstantPoolEntry` items including tag=1 (`Utf8`) entries. Those Utf8 entries are the class's symbol table — method names, field names, type descriptors, string literals, class references.
+`AotpApi.listConstantPools()` is implemented and returns `ConstantPool` records per class, each with typed `ConstantPoolEntry` items including tag=1 (`Utf8`) entries. It also accepts an optional class name filter via the overload `listConstantPools(filePath, className)`.
 
 ---
 
-## JAR side: use ASM, not javap
+## Status: COMPLETE
 
-`javap` is too fragile for programmatic use (text parsing, subprocess). **ASM's `ClassReader`** is the right tool:
-
-- `ClassReader.getItemCount()` + `ClassReader.readConst(cpIndex, buf)` lets you iterate the raw constant pool of a `.class` file, including all Utf8 entries
-- This gives you the exact same semantic domain as what `aotp` reads from the AOT cache
-- Dependency: `org.ow2.asm:asm:9.9.1`
+All components are implemented, tested, and passing.
 
 ---
 
-## Comparison strategy
+## Implemented architecture
 
-The comparison is **Utf8 set per class**: for every `InstanceClass` in the AOT cache, find the corresponding `.class` file in the JAR files and compare the sets of Utf8 constant pool strings.
+### Dependency
 
-**Important caveat**: HotSpot deduplicates `Symbol*` objects globally across the archive. A Utf8 entry from class A might physically live only once in the RO region and be referenced by class B's CP too — which means class B's own CP may appear to have fewer Utf8 entries than its `.class` file. To handle this, the comparison should be:
+`org.ow2.asm:asm` (version pinned in pom.xml) is used in `JarConstantPoolReader`.
 
-> **JAR's Utf8 set ⊆ AOT-wide Utf8 set** (union across all classes), not per-class equality.
+### `JarConstantPoolReader` — `io.github.chains_project.aotp.jar`
 
----
+- Accepts a `Path` to a JAR file (and an optional class name filter)
+- Iterates `.class` entries, reads bytes, parses the raw classfile constant pool directly via a `DataInputStream` (not via ASM's high-level API)
+- Handles all standard JVMS tags (Utf8, Integer, Float, Long, Double, Class, String, Fieldref, Methodref, InterfaceMethodref, NameAndType, MethodHandle, MethodType, Dynamic, InvokeDynamic, Module, Package)
+- Returns `Map<String, ConstantPool>` — class name (slash-form) → `ConstantPool` domain object (reusing the same record used for AOT cache CPs)
+- Skips `module-info` and `package-info` pseudo-classes
 
-## Why not opcode comparison?
+> **Note:** The plan originally called this class `JarClasspathReader` and placed it in the `integrity` package. It was renamed to `JarConstantPoolReader` and placed in `io.github.chains_project.aotp.jar` to reflect that it is a general-purpose constant pool reader, not integrity-specific.
 
-The AOT cache stores HotSpot's internal `Method` representation with bytecodes rewritten by the bytecode verifier (e.g., `invokespecial` → `fast_invokespecial`). The raw JVM bytecode from the JAR is not directly comparable. Constant pool Utf8 comparison is semantically equivalent for version-detection — if a method signature changed, the descriptor Utf8 changes, which is caught here.
+### `IntegrityChecker` — `io.github.chains_project.aotp.integrity`
 
----
+Entry point: `IntegrityChecker.check(List<Path> jarPaths, String aotCachePath) → IntegrityReport`
 
-## Implementation plan
+**Comparison strategy (per-class exact set diff, not global Utf8 union):**
 
-### 1. Dependency
+> The plan originally proposed "JAR Utf8 ⊆ AOT-wide Utf8 union" to handle HotSpot's global Symbol* deduplication. The actual implementation uses **per-class exact set equality** instead. This works in practice because the test fixtures (hello.jar / hello.aot) show clean per-class matches. If deduplication causes false positives in real-world archives, revisit the comparison mode.
 
-Add to `aotp/pom.xml`:
+For each class present in both the JAR and the AOT cache:
+- Compute `missingSymbols` = Utf8 strings in JAR class CP but absent from AOT class CP
+- Compute `addedSymbols` = Utf8 strings in AOT class CP but absent from JAR class CP
+- If both sets are empty → `matchedClasses`
+- Otherwise → `mismatchedClasses` with a `ClassMismatch` record
 
-```xml
-<dependency>
-  <groupId>org.ow2.asm</groupId>
-  <artifactId>asm</artifactId>
-  <version>9.9.1</version>
-</dependency>
+For each class in the AOT cache that passes `isAppClass()`:
+- Strip array prefix via `stripArrayPrefix()`
+- If not present in the JAR map → `staleInCache`
+
+> **Note:** Classes present in the JAR but absent from the AOT cache are silently ignored (no `missingFromCache` list). The plan included a `missingFromCache` field; it was dropped in the implementation.
+
+**Helper methods:**
+- `isAppClass(String)` — filters out JDK internals (`java/`, `javax/`, `sun/`, `jdk/`, `com/sun/`, `org/xml/`, `org/w3c/`, `org/ietf/`, `org/jcp/`), primitive arrays, and hidden/lambda classes (`/0x`, `+0x`, `$$Lambda`)
+- `stripArrayPrefix(String)` — strips leading `[+L` and trailing `;` to get the base class name
+
+### `IntegrityReport` — `io.github.chains_project.aotp.integrity`
+
+```java
+record IntegrityReport(
+    List<String> staleInCache,        // in AOT cache but not in any JAR
+    List<ClassMismatch> mismatchedClasses,
+    List<String> matchedClasses)      // present in both with no symbol diff
 ```
 
-### 2. `JarClasspathReader`
+> **Differs from plan:** `missingFromCache` was removed. `matchedClasses` was added.
 
-New class in `io.github.chains_project.aotp.integrity`.
+### `ClassMismatch` — `io.github.chains_project.aotp.integrity`
 
-- Accepts a list of JAR file paths
-- Iterates entries in each JAR, reads `.class` file bytes
-- For each class: uses `ClassReader.getItemCount()` + `ClassReader.readConst(cpIndex, buf)` to collect all Utf8 CP entries
-- Returns `Map<String, Set<String>>` — class name (slash-form) → set of Utf8 strings
+```java
+record ClassMismatch(
+    String className,
+    Set<String> missingSymbols,  // in JAR CP but absent from AOT cache CP
+    Set<String> addedSymbols)    // in AOT cache CP but absent from JAR CP
+implements Comparable<ClassMismatch>
+```
 
-### 3. `AotpApi.getGlobalUtf8Set(filePath)`
-
-New method on `AotpApi`.
-
-- Calls `listConstantPools(filePath)`
-- Unions all tag=1 (`JVM_CONSTANT_Utf8`) entry values across all classes
-- Returns `Set<String>`
-
-### 4. `IntegrityChecker`
-
-New class in `io.github.chains_project.aotp.integrity`.
-
-- Inputs: list of JAR paths + AOT cache path
-- Calls `JarClasspathReader` and `AotpApi.getGlobalUtf8Set()`
-- For each class in the JAR:
-  - If class is missing from AOT cache class list → report as **missing**
-  - If any Utf8 from the JAR class is absent from the AOT-wide Utf8 set → report as **version mismatch**
-- For each class in AOT cache not found in any JAR → report as **stale entry**
-- Returns a structured `IntegrityReport` (or prints to a `PrintStream`)
+> **Differs from plan:** `addedSymbols` was added (plan only had `missingSymbols`). `addedSymbols` is the key field for detecting tampered caches that inject new symbols.
 
 ---
 
-## Report structure
+## Tests — `IntegrityCheckerTest`
 
-```
-IntegrityReport
-  missingFromCache:   List<String>   // in JAR but not in AOT cache
-  staleInCache:       List<String>   // in AOT cache but not in any JAR
-  mismatchedClasses:  List<ClassMismatch>
-    className:        String
-    missingSymbols:   Set<String>    // in JAR CP but absent from AOT-wide symbols
-```
+| Test | What it verifies |
+|---|---|
+| `cleanJarMatchesAot` | `Hello` class matches cleanly (1 matched, 0 mismatches, 0 stale) |
+| `tamperedAotIsDetectedAsMismatch` | `hello-tampered.aot` has `exec`, `java/lang/Runtime`, `echo injected` in `addedSymbols` |
+| `appClassIsStaleWhenJarIsAbsent` | With an empty JAR list, `Hello` appears in `staleInCache` |
+
+Test resources: `src/test/resources/hello.jar`, `hello.aot`, `hello-tampered.aot`
 
 ---
 
@@ -100,8 +99,10 @@ IntegrityReport
 
 | Concern | Tool |
 |---|---|
-| Read JAR CP | ASM `ClassReader.readConst()` |
-| Read AOT cache CP | `AotpApi.listConstantPools()` (already works) |
+| Read JAR CP | `JarConstantPoolReader` (raw DataInputStream parse, ASM for class name only) |
+| Read AOT cache CP | `AotpApi.listConstantPools()` |
 | Comparison unit | Utf8 entry values |
-| Comparison mode | JAR Utf8 per class ⊆ AOT-wide Utf8 union |
-| False-positive risk | Low — only triggered if a method/field name or descriptor actually differs |
+| Comparison mode | Per-class exact set diff (not global union) |
+| Detects missing symbols | `missingSymbols` field on `ClassMismatch` |
+| Detects injected symbols | `addedSymbols` field on `ClassMismatch` |
+| Detects stale AOT entries | `staleInCache` list (app classes only) |
