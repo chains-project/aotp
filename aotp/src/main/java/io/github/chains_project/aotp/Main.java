@@ -175,9 +175,11 @@ public class Main implements Callable<Integer> {
                 System.out.printf("  - generic_sig_index:     %d%n", header.genericSignatureIndex());
                 System.out.printf("  - source_file_index:     %d%n", header.sourceFileNameIndex());
                 System.out.printf("  - flags:                 0x%04x%n", header.flags());
-                System.out.printf("  - length:                %d%n", header.length());
+                System.out.printf("  - length:                %d (constant_pool_count=%d, entries=%d)%n",
+                        header.length(), header.length(), header.length() - 1);
                 System.out.printf("  - saved:                 %d%n", header.saved());
             }
+            System.out.printf("  [%4d] %-26s %s%n", 0, "Invalid", "Unused; index 0 always has this tag.");
             for (ConstantPoolEntry e : cp.entries()) {
                 System.out.printf("  [%4d] %-26s %s%n", e.index(), e.tagName(), e.value());
             }
